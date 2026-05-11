@@ -83,6 +83,23 @@ class CoreTests(unittest.TestCase):
         self.assertLessEqual(np.max(np.abs(T)), 1.01 + 1e-12)
         self.assertEqual(T.shape, (sk.size, rd.size))
 
+    def test_id_rank_cap_and_tolerance_modes(self):
+        A = np.diag([10.0, 1.0, 1e-4, 0.0])
+
+        sk, rd, T = id(A, 2)
+        self.assertEqual(sk.size, 2)
+        self.assertEqual(T.shape, (2, 2))
+
+        sk, rd, T = id(A, 1e-3)
+        self.assertEqual(sk.size, 2)
+        if rd.size:
+            np.testing.assert_allclose(A[:, rd[:1]], A[:, sk] @ T[:, :1], atol=2e-4)
+
+        sk, rd, T = id(A, 1e-6)
+        self.assertEqual(sk.size, 3)
+        if rd.size:
+            np.testing.assert_allclose(A[:, rd], A[:, sk] @ T, atol=1e-10)
+
     def test_snorm_matches_diagonal_norm(self):
         A = np.diag([1.0, -3.0, 2.0])
         s, _ = snorm(3, lambda x: A @ x, lambda x: A.T @ x, tol=1e-8)

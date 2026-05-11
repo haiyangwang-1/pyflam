@@ -111,7 +111,7 @@ bug instead of silently skipping.
 - [x] Cover repeated/degenerate points that cannot be split.
 - [x] Cover high-dimensional tree child-code overflow.
 - [x] Add degenerate-point end-to-end tests for `rskelf`, `rskel`, and `ifmm`.
-- [ ] Add rank-cap versus tolerance-mode tests for `id`.
+- [x] Add rank-cap versus tolerance-mode tests for `id`.
 - [ ] Add `id` tests with fixed columns, complex inputs, empty matrices, and
       rank-deficient matrices.
 - [ ] Add nontrivial callable `stop` tests for partial `rskelf`.
