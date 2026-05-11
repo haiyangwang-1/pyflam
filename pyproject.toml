@@ -41,3 +41,19 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/pyflam"]
+
+[tool.pyflam.test-reference-dependencies.flam]
+name = "FLAM"
+url = "https://github.com/klho/FLAM.git"
+commit = "b928b2b1b4e0c3a00558bcdc7e3147fe83e720c4"
+describe = "v1.1.0-23-gb928b2b"
+required_clean = true
+
+[tool.pyflam.test-reference-dependencies.chunkie]
+name = "ChunkIE"
+url = "git@github.com:WangHaiYang874/chunkie.git"
+upstream_url = "git@github.com:fastalgorithms/chunkie.git"
+commit = "87cc6ea7828c0ef8bdc921171415b7918eb078f0"
+describe = "v0.0.1-beta-121-g87cc6ea-dirty"
+tracked_dirty_patch = "tests/reference_patches/chunkie-87cc6ea7828c0ef8bdc921171415b7918eb078f0-tracked-dirty.patch"
+note = "The parity run used this commit with the tracked dirty patch above. The local untracked devtools/test/untitled.m file was not used by PyFLAM tests."

@@ -8,12 +8,14 @@ from matlab_parity_utils import (
     FLAM_MARKERS,
     default_flam_reference,
     factor_metadata_code,
+    load_reference_dependencies,
     load_factor_metadata,
     logdet_mod_error,
     matlab_path,
     relerr,
     require_flam_reference,
     require_paths,
+    require_pinned_reference,
 )
 
 
@@ -49,6 +51,18 @@ class MatlabParityUtilsTests(unittest.TestCase):
 
         if ref.exists():
             self.assertTrue(all((ref / marker).exists() for marker in FLAM_MARKERS))
+
+    def test_reference_dependency_pins_are_loaded(self):
+        deps = load_reference_dependencies()
+
+        self.assertEqual(deps["flam"]["commit"], "b928b2b1b4e0c3a00558bcdc7e3147fe83e720c4")
+        self.assertEqual(deps["chunkie"]["commit"], "87cc6ea7828c0ef8bdc921171415b7918eb078f0")
+        self.assertIn("tracked_dirty_patch", deps["chunkie"])
+
+    def test_require_pinned_reference_reports_non_git_checkout(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with self.assertRaisesRegex(RuntimeError, "pinned FLAM git checkout"):
+                require_pinned_reference(Path(tmp), "flam", label="test parity")
 
     def test_factor_metadata_code_covers_common_factor_fields(self):
         code = factor_metadata_code("F", "meta")

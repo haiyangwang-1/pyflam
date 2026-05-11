@@ -2,6 +2,11 @@
 
 Inspected upstream files under `chunkie/devtools/test`:
 
+The ChunkIE reference used by these tests is pinned in `pyproject.toml`:
+commit `87cc6ea7828c0ef8bdc921171415b7918eb078f0` plus the tracked patch in
+`tests/reference_patches/chunkie-87cc6ea7828c0ef8bdc921171415b7918eb078f0-tracked-dirty.patch`.
+The untracked local `devtools/test/untitled.m` file was not used.
+
 - `flamutilitiesTest.m`: direct FLAM utility coverage for `kernbyindex`,
   sparse near/self correction, `proxy_square_pts`, `proxyfun`, `rskelf`, and
   `rskel`.

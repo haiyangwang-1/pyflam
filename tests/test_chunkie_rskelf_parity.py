@@ -14,6 +14,7 @@ from matlab_parity_utils import (
     relerr,
     require_flam_reference,
     require_paths,
+    require_pinned_reference,
     run_matlab_export,
 )
 from pyflam import rskelf, rskelf_logdet, rskelf_mv, rskelf_sv
@@ -28,6 +29,7 @@ class ChunkIEMoreRSkelfParityTests(unittest.TestCase):
     def setUpClass(cls):
         require_paths(MATLAB, FLAM_REF, CHUNKIE_REF, label="ChunkIE rskelf parity")
         require_flam_reference(FLAM_REF, label="ChunkIE rskelf parity")
+        require_pinned_reference(CHUNKIE_REF, "chunkie", label="ChunkIE rskelf parity")
 
     def test_laplace_dirichlet_l2scaled_starfish(self):
         self._run_case("laplace_d_l2scale")

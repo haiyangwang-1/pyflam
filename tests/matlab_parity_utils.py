@@ -6,12 +6,14 @@ import os
 import subprocess
 import tempfile
 import time
+import tomllib
 from pathlib import Path
 
 import numpy as np
 import scipy.io
 
 
+REPO_ROOT = Path(__file__).resolve().parents[1]
 MATLAB = Path(os.environ.get("MATLAB", r"C:\Program Files\MATLAB\R2026a\bin\matlab.exe"))
 FLAM_MARKERS = (
     Path("rskelf") / "rskelf.m",
@@ -37,6 +39,71 @@ def require_paths(*paths: Path, label: str = "MATLAB parity") -> None:
 
 def require_flam_reference(path: Path, label: str = "MATLAB parity") -> None:
     require_paths(path, *(path / marker for marker in FLAM_MARKERS), label=f"{label} FLAM reference")
+    require_pinned_reference(path, "flam", label=label)
+
+
+def load_reference_dependencies(pyproject: Path | None = None) -> dict[str, dict]:
+    """Load pinned external MATLAB parity reference metadata from pyproject."""
+
+    pyproject = REPO_ROOT / "pyproject.toml" if pyproject is None else pyproject
+    with pyproject.open("rb") as handle:
+        data = tomllib.load(handle)
+    return data.get("tool", {}).get("pyflam", {}).get("test-reference-dependencies", {})
+
+
+def require_pinned_reference(path: Path, key: str, label: str = "MATLAB parity") -> None:
+    """Require a local reference checkout to match the version pinned by PyFLAM."""
+
+    deps = load_reference_dependencies()
+    if key not in deps:
+        raise RuntimeError(f"{label} has no pinned reference dependency named {key!r}")
+    dep = deps[key]
+    name = dep.get("name", key)
+    expected_commit = dep.get("commit")
+    require_paths(path, label=f"{label} {name} pinned reference")
+    head = _git_stdout(path, "rev-parse", "HEAD", label=label, name=name).strip()
+    if head != expected_commit:
+        raise RuntimeError(
+            f"{label} requires pinned {name} commit {expected_commit}, but {path} is at {head}. "
+            f"Run `git -C {path} checkout {expected_commit}`."
+        )
+
+    if dep.get("required_clean"):
+        status = _git_stdout(path, "status", "--porcelain", label=label, name=name)
+        if status.strip():
+            raise RuntimeError(f"{label} requires pinned {name} checkout {path} to be clean.")
+
+    patch_name = dep.get("tracked_dirty_patch")
+    if patch_name:
+        patch_path = REPO_ROOT / patch_name
+        require_paths(patch_path, label=f"{label} {name} pinned dirty patch")
+        expected = patch_path.read_text(encoding="utf-8")
+        actual = _git_stdout(path, "diff", "--no-ext-diff", "--", label=label, name=name)
+        if _canonical_patch(actual) != _canonical_patch(expected):
+            raise RuntimeError(
+                f"{label} requires pinned {name} tracked diff to match {patch_path}. "
+                f"Run `git -C {path} apply {patch_path}` after checking out {expected_commit}."
+            )
+
+
+def _git_stdout(path: Path, *args: str, label: str, name: str) -> str:
+    result = subprocess.run(
+        ["git", "-C", str(path), *args],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    if result.returncode:
+        detail = (result.stderr or result.stdout).strip()
+        raise RuntimeError(f"{label} requires pinned {name} git checkout at {path}: {detail}")
+    return result.stdout
+
+
+def _canonical_patch(text: str) -> str:
+    lines = text.replace("\r\n", "\n").replace("\r", "\n").split("\n")
+    while lines and lines[-1] == "":
+        lines.pop()
+    return "\n".join(line.rstrip() for line in lines)
 
 
 def default_flam_reference() -> Path:

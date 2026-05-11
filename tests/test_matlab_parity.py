@@ -15,6 +15,7 @@ from matlab_parity_utils import (
     relerr as _relerr,
     require_flam_reference,
     require_paths,
+    require_pinned_reference,
     run_matlab_export,
 )
 from pyflam import (
@@ -944,6 +945,7 @@ class ChunkIEStyleRSkelfParityTests(unittest.TestCase):
     def setUpClass(cls):
         require_paths(MATLAB, FLAM_REF, CHUNKIE_REF, label="ChunkIE parity tests")
         require_flam_reference(FLAM_REF, label="ChunkIE parity tests")
+        require_pinned_reference(CHUNKIE_REF, "chunkie", label="ChunkIE parity tests")
 
     def test_laplace_dirichlet_starfish_rskelf_callback(self):
         self._run_chunkie_rskelf_case("laplace_d")

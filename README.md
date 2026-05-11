@@ -28,9 +28,11 @@ uv run python -m unittest discover -s tests -v
 ```
 
 Full MATLAB/FLAM/ChunkIE parity requires MATLAB plus local reference checkouts.
-The test harness validates that `FLAM_REFERENCE` contains public entry points
-such as `rskelf/rskelf.m`, so incomplete helper checkouts fail early with a
-clear setup error.
+The exact FLAM and ChunkIE reference commits used by the parity suite are
+pinned in `pyproject.toml` under
+`[tool.pyflam.test-reference-dependencies]`. The test harness validates those
+commits before running MATLAB, including the tracked dirty ChunkIE patch needed
+for the current ChunkIE-style parity fixtures.
 
 ```powershell
 $env:FLAM_REFERENCE='<path-to-FLAM-checkout>'
