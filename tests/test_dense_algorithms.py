@@ -116,6 +116,33 @@ class DenseAlgorithmTests(unittest.TestCase):
         np.testing.assert_allclose(rskelf_cholsv(F, self.X), np.linalg.solve(C, self.X))
         np.testing.assert_allclose(rskelf_cholsv(F, self.X, "c"), np.linalg.solve(C.conj().T, self.X))
 
+    def test_rskelf_symmetric_compact_paths_match_dense(self):
+        x = np.linspace(0.0, 1.0, 20).reshape(1, -1)
+        A = kernel_matrix(x.ravel(), x.ravel()) + 3.0 * np.eye(20)
+        X = np.random.default_rng(4).standard_normal((20, 3))
+
+        for symm in ("s", "h", "p"):
+            with self.subTest(symm=symm):
+                F = rskelf(A, x, occ=2, rank_or_tol=1e-10, opts={"symm": symm})
+                self.assertGreater(len(F.factors), 1)
+                self.assertEqual(F.Si.size, 0)
+                np.testing.assert_allclose(rskelf_mv(F, X), A @ X, rtol=1e-9, atol=1e-9)
+                np.testing.assert_allclose(rskelf_mv(F, X, "c"), A.conj().T @ X, rtol=1e-9, atol=1e-9)
+                np.testing.assert_allclose(rskelf_sv(F, X), np.linalg.solve(A, X), rtol=1e-9, atol=1e-9)
+                np.testing.assert_allclose(rskelf_sv(F, X, "c"), np.linalg.solve(A.conj().T, X), rtol=1e-9, atol=1e-9)
+                self.assertAlmostEqual(rskelf_logdet(F), np.linalg.slogdet(A)[1])
+
+    def test_rskelf_generalized_cholesky_round_trips(self):
+        x = np.linspace(0.0, 1.0, 20).reshape(1, -1)
+        A = kernel_matrix(x.ravel(), x.ravel()) + 3.0 * np.eye(20)
+        X = np.random.default_rng(5).standard_normal((20, 2))
+        F = rskelf(A, x, occ=2, rank_or_tol=1e-10, opts={"symm": "p"})
+
+        CctX = rskelf_cholmv(F, rskelf_cholmv(F, X, "c"))
+        np.testing.assert_allclose(CctX, A @ X, rtol=1e-9, atol=1e-9)
+        np.testing.assert_allclose(rskelf_cholsv(F, rskelf_cholmv(F, X)), X, rtol=1e-10, atol=1e-10)
+        np.testing.assert_allclose(rskelf_cholsv(F, rskelf_cholmv(F, X, "c"), "c"), X, rtol=1e-10, atol=1e-10)
+
 
 if __name__ == "__main__":
     unittest.main()
