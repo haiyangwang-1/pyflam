@@ -506,8 +506,15 @@ def _downward_T(F: IFMMFactor, f: IFMMUBlock, trans: str) -> np.ndarray:
 
 def _factor_dtype(F: IFMMFactor, X: np.ndarray, A) -> np.dtype:
     dtype = np.asarray(X).dtype
-    if A is not None and not callable(A):
-        dtype = np.result_type(dtype, A.dtype if hasattr(A, "dtype") else np.asarray(A).dtype)
+    if A is not None:
+        if callable(A):
+            if F.M and F.N:
+                dtype = np.result_type(
+                    dtype,
+                    _eval_block(A, np.array([0], dtype=np.int64), np.array([0], dtype=np.int64)),
+                )
+        else:
+            dtype = np.result_type(dtype, A.dtype if hasattr(A, "dtype") else np.asarray(A).dtype)
     for f in F.U:
         dtype = np.result_type(dtype, f.rT, f.cT)
     for f in F.B:

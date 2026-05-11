@@ -125,6 +125,19 @@ class DenseAlgorithmTests(unittest.TestCase):
         np.testing.assert_allclose(ifmm_mv(F, self.X), A @ self.X)
         np.testing.assert_allclose(ifmm_mv(F, self.X, trans="c"), A.conj().T @ self.X)
 
+    def test_ifmm_mv_promotes_complex_callback_blocks(self):
+        A = self.A.astype(complex)
+        A[0, 1] += 0.25j
+        A[3, 2] -= 0.5j
+
+        def Afun(i, j):
+            return A[np.ix_(i, j)]
+
+        F = ifmm(Afun, self.x, self.x, occ=3, rank_or_tol=1e-10, opts={"store": "n", "near": 0})
+
+        np.testing.assert_allclose(ifmm_mv(F, self.X, Afun), A @ self.X)
+        np.testing.assert_allclose(ifmm_mv(F, self.X, Afun, trans="c"), A.conj().T @ self.X)
+
     def test_rskelf_mv_sv_logdet_match_dense(self):
         F = rskelf(self.Afun, self.x, occ=3, rank_or_tol=1e-10)
         self.assertGreater(len(F.factors), 0)
