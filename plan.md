@@ -65,7 +65,7 @@ bug instead of silently skipping.
 
 - [x] Add MATLAB parity for `rskelf` with `symm='s'`.
 - [x] Add MATLAB parity for `rskelf` with `symm='h'`.
-- [ ] Add MATLAB parity for `rskelf` with `symm='p'`.
+- [x] Add MATLAB parity for `rskelf` with `symm='p'`.
 - [ ] Add complex matrix parity for each supported symmetry mode.
 - [ ] Add proxy-callback parity for each supported symmetry mode where MATLAB
       FLAM supports it.
@@ -73,7 +73,7 @@ bug instead of silently skipping.
       stop functions.
 - [ ] Verify compact `rskelf_mv` for `trans='n'`, `'t'`, and `'c'`.
 - [ ] Verify compact `rskelf_sv` for `trans='n'`, `'t'`, and `'c'`.
-- [ ] Verify `rskelf_cholmv` and `rskelf_cholsv` for positive-definite factors.
+- [x] Verify `rskelf_cholmv` and `rskelf_cholsv` for positive-definite factors.
 - [ ] Verify `rskelf_logdet` for real, complex, symmetric, Hermitian, positive,
       and partial factorizations.
 - [ ] Ensure callback-based factors do not require eager dense materialization.
