@@ -8,7 +8,7 @@ from pathlib import Path
 import numpy as np
 import scipy.io
 
-from pyflam import ifmm, ifmm_mv, rskelf, rskelf_mv, rskelf_sv
+from pyflam import id, ifmm, ifmm_mv, rskelf, rskelf_mv, rskelf_sv
 
 
 MATLAB = Path(r"C:\Program Files\MATLAB\R2026a\bin\matlab.exe")
@@ -23,6 +23,41 @@ FLAM_REF = Path(os.environ.get("FLAM_REFERENCE", _DEFAULT_FLAM_REF))
     "set PYFLAM_RUN_MATLAB_PARITY=1 with MATLAB and FLAM reference available",
 )
 class MatlabParityTests(unittest.TestCase):
+    def test_id_fixed_columns(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "id_parity.mat"
+            script = Path(tmp) / "run_id_parity.m"
+            script.write_text(
+                textwrap.dedent(
+                    f"""
+                    addpath(genpath('{str(FLAM_REF).replace("'", "''")}'));
+                    A = [1 2 3 4 5 6;
+                         0 1 1 2 3 5;
+                         2 1 0 1 0 2;
+                         3 5 8 13 21 34;
+                         1 -1 2 -2 3 -3] / 17;
+                    [sk,rd,T,niter] = id(A,3+1e-12,2,Inf,[2 5]);
+                    save('{str(out).replace("'", "''")}','A','sk','rd','T','niter');
+                    exit;
+                    """
+                )
+            )
+            subprocess.run(
+                [str(MATLAB), "-batch", f"run('{script.as_posix()}')"],
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                timeout=120,
+            )
+            data = scipy.io.loadmat(out)
+
+        sk, rd, T, niter = id(data["A"], 3 + 1e-12, 2, np.inf, fixed=[1, 4], return_niter=True)
+        np.testing.assert_array_equal(sk, data["sk"].ravel().astype(np.int64) - 1)
+        np.testing.assert_array_equal(rd, data["rd"].ravel().astype(np.int64) - 1)
+        np.testing.assert_allclose(T, data["T"], rtol=1e-12, atol=1e-12)
+        self.assertEqual(niter, int(data["niter"].ravel()[0]))
+
     def test_rskelf_small_apply_and_solve(self):
         with tempfile.TemporaryDirectory() as tmp:
             out = Path(tmp) / "parity.mat"
