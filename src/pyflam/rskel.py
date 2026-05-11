@@ -127,9 +127,9 @@ def rskel(A, rx, cx, occ, rank_or_tol, pxyfun=None, opts=None) -> RSkelFactor:
                     Kpxy, cnbr = pxyfun("r", rx, cx, rslf, cnbr, node_size, node.ctr)
                     Kpxy = np.asarray(Kpxy)
                     cnbr = np.asarray(cnbr, dtype=np.int64)
-            K = submatrix(A, rslf, cnbr).T if (rslf.size and cnbr.size) else np.zeros((0, rslf.size))
+            K = submatrix(A, rslf, cnbr).conj().T if (rslf.size and cnbr.size) else np.zeros((0, rslf.size))
             if Kpxy.size:
-                K = np.vstack((K, Kpxy.T))
+                K = np.vstack((K, Kpxy.conj().T))
             rsk, rrd, rT = id(K, rank_or_tol, o["Tmax"], o["rrqr_iter"]) if rslf.size else (
                 np.array([], dtype=np.int64),
                 np.array([], dtype=np.int64),

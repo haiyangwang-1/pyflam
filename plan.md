@@ -83,7 +83,7 @@ bug instead of silently skipping.
 ## 4. Finish `rskel` Fidelity
 
 - [x] Add MATLAB parity for unsymmetric `rskel` with callback matrix access.
-- [ ] Add MATLAB parity for `symm='s'`.
+- [x] Add MATLAB parity for `symm='s'`.
 - [ ] Add MATLAB parity for `symm='h'`.
 - [ ] Add MATLAB parity for `symm='p'` and confirm MATLAB semantics map to the
       Python factor mode.
