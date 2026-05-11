@@ -133,13 +133,13 @@ def hypoct(x: ArrayLike, occ: int, lvlmax: float = np.inf, ext: ArrayLike | None
             xi = nodes[prnt].xi
             if xi.size <= occ:
                 continue
+            if _unique_point_count(x[:, xi]) <= 1:
+                continue
             pctr = nodes[prnt].ctr
             side = (ldiv[:, None] & (x[:, xi] > pctr[:, None])).astype(np.int64)
-            child_code = np.sum(side * (2 ** np.arange(d, dtype=np.int64))[:, None], axis=0)
-            for code in np.unique(child_code):
-                bit = np.array([(int(code) >> k) & 1 for k in range(d)], dtype=current_l.dtype)
+            for bit, mask in _child_partitions(side):
                 child_ctr = pctr + next_l * ldiv * (bit - 0.5)
-                child_xi = xi[child_code == code]
+                child_xi = xi[mask]
                 child_idx = len(nodes)
                 nodes.append(HypOctNode(ctr=child_ctr, xi=child_xi, prnt=prnt))
                 nodes[prnt].chld.append(child_idx)
@@ -182,6 +182,32 @@ def hypoct(x: ArrayLike, occ: int, lvlmax: float = np.inf, ext: ArrayLike | None
                 node.nbor.extend([candidates[k] for k in np.flatnonzero(np.max(dist, axis=0) <= 1)])
 
     return tree
+
+
+def _unique_point_count(x: np.ndarray) -> int:
+    if x.size == 0:
+        return 0
+    return np.unique(x, axis=1).shape[1]
+
+
+def _child_partitions(side: np.ndarray):
+    d, n = side.shape
+    if d <= 63:
+        child_code = np.sum(side * (2 ** np.arange(d, dtype=np.int64))[:, None], axis=0)
+        for code in np.unique(child_code):
+            bit = np.array([(int(code) >> k) & 1 for k in range(d)], dtype=side.dtype)
+            yield bit, child_code == code
+        return
+
+    codes = []
+    for j in range(n):
+        code = 0
+        for k in np.flatnonzero(side[:, j]):
+            code |= 1 << int(k)
+        codes.append(code)
+    for code in sorted(set(codes)):
+        bit = np.array([(code >> k) & 1 for k in range(d)], dtype=side.dtype)
+        yield bit, np.fromiter((value == code for value in codes), dtype=bool, count=n)
 
 
 def hypoct_perm(t: HypOctTree) -> np.ndarray:

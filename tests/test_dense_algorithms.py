@@ -113,6 +113,51 @@ class DenseAlgorithmTests(unittest.TestCase):
         np.testing.assert_allclose(ifmm_mv(F, X), A @ X)
         np.testing.assert_allclose(ifmm_mv(F, Y, trans="c"), A.conj().T @ Y)
 
+    def test_ifmm_store_near_and_symmetry_modes_match_dense(self):
+        x = np.linspace(0.0, 1.0, 16).reshape(1, -1)
+        base = kernel_matrix(x.ravel(), x.ravel()) + 2.0 * np.eye(16)
+        rng = np.random.default_rng(10)
+
+        cases = {
+            "s": base,
+            "h": base.astype(complex) + 0.03j * (x.T - x),
+        }
+        for symm, A in cases.items():
+            X = rng.standard_normal((16, 3))
+            if np.iscomplexobj(A):
+                X = X + 1j * rng.standard_normal((16, 3))
+            for store in ("n", "s", "r", "a"):
+                for near in (0, 1):
+                    with self.subTest(symm=symm, store=store, near=near):
+                        F = ifmm(A, x, x, occ=2, rank_or_tol=1e-10, opts={"symm": symm, "store": store, "near": near})
+                        np.testing.assert_allclose(ifmm_mv(F, X, A), A @ X, rtol=1e-9, atol=1e-9)
+                        np.testing.assert_allclose(ifmm_mv(F, X, A, trans="c"), A.conj().T @ X, rtol=1e-9, atol=1e-9)
+
+    def test_ifmm_rectangular_complex_proxy_callback(self):
+        rx = np.linspace(0.0, 1.0, 20).reshape(1, -1)
+        cx = np.linspace(0.05, 0.95, 15).reshape(1, -1)
+        A = kernel_matrix(rx.ravel(), cx.ravel()).astype(complex)
+        A += 0.1j * np.cos(rx.ravel()[:, None] + 2.0 * cx.ravel()[None, :])
+        rng = np.random.default_rng(11)
+        X = rng.standard_normal((15, 2)) + 1j * rng.standard_normal((15, 2))
+        Z = rng.standard_normal((20, 2)) + 1j * rng.standard_normal((20, 2))
+        calls = []
+
+        def pxyfun(rc, rxp, cxp, slf, nbr, l, ctr):
+            calls.append(rc)
+            if rc == "r":
+                far = np.setdiff1d(np.arange(cxp.shape[1]), nbr, assume_unique=False)
+                return A[np.ix_(slf, far)], nbr
+            far = np.setdiff1d(np.arange(rxp.shape[1]), nbr, assume_unique=False)
+            return A[np.ix_(far, slf)], nbr
+
+        F = ifmm(A, rx, cx, occ=2, rank_or_tol=1e-10, pxyfun=pxyfun, opts={"store": "a", "near": 1})
+
+        self.assertIn("r", calls)
+        self.assertIn("c", calls)
+        np.testing.assert_allclose(ifmm_mv(F, X), A @ X, rtol=1e-9, atol=1e-9)
+        np.testing.assert_allclose(ifmm_mv(F, Z, trans="c"), A.conj().T @ Z, rtol=1e-9, atol=1e-9)
+
     def test_ifmm_mv_promotes_complex_stored_blocks(self):
         A = self.A.astype(complex)
         A[0, 1] += 0.25j

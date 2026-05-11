@@ -6,6 +6,19 @@ from pyflam import hypoct, hypoct_perm, id, snorm
 
 
 class CoreTests(unittest.TestCase):
+    def test_hypoct_empty_and_singleton_trees(self):
+        empty = np.empty((2, 0))
+        tree = hypoct(empty, occ=1)
+        self.assertEqual(tree.nlvl, 1)
+        self.assertEqual(len(tree.nodes), 1)
+        np.testing.assert_array_equal(hypoct_perm(tree), np.array([], dtype=np.int64))
+
+        single = np.array([[0.25], [0.75]])
+        tree = hypoct(single, occ=0)
+        self.assertEqual(tree.nlvl, 1)
+        self.assertEqual(len(tree.nodes), 1)
+        np.testing.assert_array_equal(hypoct_perm(tree), [0])
+
     def test_hypoct_contains_each_point_once(self):
         x = np.array([[0.0, 0.1, 0.8, 0.9], [0.0, 0.2, 0.7, 1.0]])
         tree = hypoct(x, occ=1)
@@ -14,6 +27,27 @@ class CoreTests(unittest.TestCase):
         np.testing.assert_array_equal(np.sort(perm), np.arange(x.shape[1]))
         leaves = [node for node in tree.nodes if len(node.chld) == 0]
         self.assertTrue(all(node.xi.size <= 1 for node in leaves))
+
+    def test_hypoct_repeated_points_do_not_refine_forever(self):
+        x = np.array([[0.5, 0.5, 0.5], [0.25, 0.25, 0.25]])
+
+        tree = hypoct(x, occ=1)
+
+        self.assertEqual(tree.nlvl, 1)
+        self.assertEqual(len(tree.nodes), 1)
+        np.testing.assert_array_equal(hypoct_perm(tree), np.arange(x.shape[1]))
+
+    def test_hypoct_high_dimension_child_codes_do_not_overflow(self):
+        x = np.zeros((70, 4))
+        x[64, :] = [0.0, 1.0, 0.0, 1.0]
+        x[65, :] = [0.0, 0.0, 1.0, 1.0]
+
+        tree = hypoct(x, occ=1)
+
+        self.assertEqual(tree.nlvl, 2)
+        leaves = [node for node in tree.nodes if len(node.chld) == 0]
+        self.assertTrue(all(node.xi.size == 1 for node in leaves))
+        np.testing.assert_array_equal(np.sort(hypoct_perm(tree)), np.arange(x.shape[1]))
 
     def test_id_reconstructs_low_rank_columns(self):
         rng = np.random.default_rng(1)

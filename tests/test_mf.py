@@ -55,6 +55,29 @@ class MultifontalTests(unittest.TestCase):
         np.testing.assert_allclose(mf_spdiag(F), np.diag(A))
         np.testing.assert_allclose(mf_spdiag(F, True), np.diag(np.linalg.inv(A)))
 
+    def test_mfx_complex_sparse_transpose_solves_and_logdet(self):
+        A = np.array(
+            [
+                [3.0 + 1.0j, 1.0 - 2.0j, 0.0, 0.0],
+                [0.5 + 0.25j, 4.0 - 0.5j, 1.0j, 0.0],
+                [0.0, -1.0 + 0.2j, 5.0 + 0.75j, 2.0],
+                [0.1j, 0.0, 0.5 - 0.5j, 2.5 + 1.5j],
+            ]
+        )
+        x = np.linspace(0.0, 1.0, A.shape[0]).reshape(1, -1)
+        X = (np.arange(8.0).reshape(4, 2) + 1j * np.arange(8.0, 16.0).reshape(4, 2)) / 17.0
+        F = mfx(sp.csc_matrix(A), x, occ=2)
+        ref_logdet = np.log(np.linalg.det(A))
+        ref_logdet = ref_logdet.real + 1j * np.mod(ref_logdet.imag, 2 * np.pi)
+
+        np.testing.assert_allclose(mf_mv(F, X), A @ X)
+        np.testing.assert_allclose(mf_mv(F, X, "t"), A.T @ X)
+        np.testing.assert_allclose(mf_mv(F, X, "c"), A.conj().T @ X)
+        np.testing.assert_allclose(mf_sv(F, X), np.linalg.solve(A, X))
+        np.testing.assert_allclose(mf_sv(F, X, "t"), np.linalg.solve(A.T, X))
+        np.testing.assert_allclose(mf_sv(F, X, "c"), np.linalg.solve(A.conj().T, X))
+        np.testing.assert_allclose(mf_logdet(F), ref_logdet)
+
     def test_mf2_positive_definite_cholesky_helpers(self):
         A_sparse = _spd_tridiag(9)
         A = A_sparse.toarray()

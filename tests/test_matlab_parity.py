@@ -7,6 +7,7 @@ from pathlib import Path
 
 import numpy as np
 import scipy.io
+import scipy.special
 
 from pyflam import (
     hypoct,
@@ -42,13 +43,16 @@ _DEFAULT_FLAM_REF = Path(tempfile.gettempdir()) / "flam-reference"
 if not _DEFAULT_FLAM_REF.exists():
     _DEFAULT_FLAM_REF = Path(tempfile.gettempdir()) / "FLAM-ref"
 FLAM_REF = Path(os.environ.get("FLAM_REFERENCE", _DEFAULT_FLAM_REF))
+CHUNKIE_REF = Path(os.environ.get("CHUNKIE_REFERENCE", Path(r"C:\Users\haiya\git\chunkie")))
 
 
-@unittest.skipUnless(
-    os.environ.get("PYFLAM_RUN_MATLAB_PARITY") == "1" and MATLAB.exists() and FLAM_REF.exists(),
-    "set PYFLAM_RUN_MATLAB_PARITY=1 with MATLAB and FLAM reference available",
-)
 class MatlabParityTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        missing = [str(path) for path in (MATLAB, FLAM_REF) if not path.exists()]
+        if missing:
+            raise RuntimeError("MATLAB parity tests require: " + ", ".join(missing))
+
     def test_hypoct_layout_and_permutation(self):
         with tempfile.TemporaryDirectory() as tmp:
             out = Path(tmp) / "hypoct_parity.mat"
@@ -296,7 +300,10 @@ class MatlabParityTests(unittest.TestCase):
                     x = linspace(0,1,n);
                     A = @(i,j) 1./(1 + abs(reshape(x(i),[],1) - reshape(x(j),1,[]))) + 2*(i(:)==j(:)');
                     F = rskelf(A,x,3,1e-10,[],struct('symm','n','stop',3));
-                    [sk,S] = rskelf_partial_info(F);
+                    % The FLAM reference helper currently has a case typo
+                    % (F.si instead of F.Si), so read the fields directly.
+                    if isfield(F,'Si'), sk = F.Si; else, sk = []; end
+                    if isfield(F,'S'), S = F.S; else, S = sparse(0,0); end
                     Ad = A(1:n,1:n);
                     save('{str(out).replace("'", "''")}','Ad','sk','S');
                     exit;
@@ -516,6 +523,197 @@ class MatlabParityTests(unittest.TestCase):
         np.testing.assert_allclose(hifde_logdet(F), data["ld"].ravel()[0], rtol=1e-9, atol=1e-9)
         np.testing.assert_allclose(hifde_diag(F), data["D"].ravel(), rtol=1e-9, atol=1e-9)
         np.testing.assert_allclose(hifde_diag(F, True), data["Di"].ravel(), rtol=1e-9, atol=1e-9)
+
+
+class ChunkIEStyleRSkelfParityTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        missing = [str(path) for path in (MATLAB, FLAM_REF, CHUNKIE_REF) if not path.exists()]
+        if missing:
+            raise RuntimeError("ChunkIE parity tests require: " + ", ".join(missing))
+
+    def test_laplace_dirichlet_starfish_rskelf_callback(self):
+        self._run_chunkie_rskelf_case("laplace_d")
+
+    def test_helmholtz_dirichlet_starfish_rskelf_callback(self):
+        self._run_chunkie_rskelf_case("helmholtz_d")
+
+    def _run_chunkie_rskelf_case(self, kernel_kind: str):
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / f"chunkie_{kernel_kind}.mat"
+            script = Path(tmp) / f"run_chunkie_{kernel_kind}.m"
+            _write_chunkie_rskelf_driver(script, out, kernel_kind)
+            subprocess.run(
+                [str(MATLAB), "-batch", f"run('{script.as_posix()}')"],
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                timeout=240,
+            )
+            data = scipy.io.loadmat(out)
+
+        op = _ChunkIERSkelfOperator(data, kernel_kind)
+        n = data["sys"].shape[0]
+        idx = np.arange(n, dtype=np.int64)
+        dense_from_callback = op(idx, idx)
+        np.testing.assert_allclose(_relerr(dense_from_callback, data["sys"]), 0.0, atol=1e-12)
+        self.assertGreater(op.spmat.nnz, n)
+
+        F = rskelf(
+            op,
+            data["xflam"],
+            int(data["occ"].item()),
+            float(data["tol"].item()),
+            pxyfun=op.proxy_callback(data["pr"], data["ptau"], data["pw"]),
+        )
+        Ymv = rskelf_mv(F, data["X"])
+        Ysv = rskelf_sv(F, data["X"])
+
+        self.assertIsNone(F.A_dense)
+        self.assertGreater(len(F.factors), 0)
+        self.assertGreater(op.proxy_calls, 0)
+        np.testing.assert_allclose(_relerr(Ymv, data["Ymv"]), 0.0, atol=1e-10)
+        np.testing.assert_allclose(_relerr(Ysv, data["Ysv"]), 0.0, atol=1e-10)
+        np.testing.assert_allclose(_relerr(Ymv, data["sys"] @ data["X"]), 0.0, atol=1e-9)
+        np.testing.assert_allclose(_relerr(data["sys"] @ Ysv, data["X"]), 0.0, atol=1e-9)
+        self.assertLess(_logdet_mod_error(rskelf_logdet(F), data["ld"].item()), 1e-9)
+
+
+def _write_chunkie_rskelf_driver(script: Path, out: Path, kernel_kind: str) -> None:
+    if kernel_kind == "laplace_d":
+        kernel_setup = "zk = 0; fkern = @(s,t) chnk.lap2d.kern(s,t,'D');"
+        rhs_setup = "X = reshape(sin((1:(3*chnkr.npt))/37), chnkr.npt, 3);"
+    elif kernel_kind == "helmholtz_d":
+        kernel_setup = "zk = 1.1; fkern = @(s,t) chnk.helm2d.kern(zk,s,t,'D');"
+        rhs_setup = "X = reshape(exp(1i*(1:(3*chnkr.npt))/41), chnkr.npt, 3);"
+    else:
+        raise ValueError(f"unknown ChunkIE kernel case: {kernel_kind}")
+
+    script.write_text(
+        textwrap.dedent(
+            f"""
+            cd('{_matlab_path(CHUNKIE_REF)}');
+            addpath('./chunkie');
+            addpath(genpath('{_matlab_path(FLAM_REF)}'));
+            rng(8675309);
+
+            cparams = [];
+            cparams.ifclosed = 1;
+            cparams.nover = 0;
+            pref = [];
+            pref.k = 12;
+            chnkr = chunkerfuncuni(@(t) starfish(t,3,0.25), 12, cparams, pref);
+            {kernel_setup}
+
+            dval = -0.5;
+            qopts = [];
+            qopts.nonsmoothonly = true;
+            qopts.quad = 'ggq';
+            qopts.type = 'log';
+            qopts.eps = 1e-10;
+            spmat = chunkermat(chnkr, fkern, qopts) + dval*speye(chnkr.npt);
+            sys = chunkermat(chnkr, fkern) + dval*eye(chnkr.npt);
+
+            r = chnkr.r(:,:);
+            dd = chnkr.d(:,:);
+            d2 = chnkr.d2(:,:);
+            nn = chnkr.n(:,:);
+            wts = weights(chnkr);
+            wts = wts(:);
+            xflam = r;
+            occ = 12;
+            tol = 1e-10;
+            {rhs_setup}
+
+            matfun = @(i,j) chnk.flam.kernbyindex(i,j,chnkr,wts,fkern,ones([2,1,1]),spmat);
+            [pr,ptau,pw,pin] = chnk.flam.proxy_square_pts(64);
+            pxyfun = @(x,slf,nbr,l,ctr) chnk.flam.proxyfun(slf,nbr,l,ctr,chnkr,wts, ...
+                fkern,ones([2,1,1]),pr,ptau,pw,pin,true);
+            F = rskelf(matfun, xflam, occ, tol, pxyfun);
+            Ymv = rskelf_mv(F, X);
+            Ysv = rskelf_sv(F, X);
+            ld = rskelf_logdet(F);
+
+            save('{_matlab_path(out)}','sys','spmat','r','dd','d2','nn','wts','xflam', ...
+                 'occ','tol','X','Ymv','Ysv','ld','pr','ptau','pw','zk','-v7');
+            exit;
+            """
+        )
+    )
+
+
+class _ChunkIERSkelfOperator:
+    def __init__(self, data, kernel_kind: str):
+        self.r = np.asarray(data["r"])
+        self.n = np.asarray(data["nn"])
+        self.wts = np.asarray(data["wts"]).reshape(-1)
+        self.spmat = data["spmat"].tocsc()
+        self.kernel_kind = kernel_kind
+        self.zk = float(np.asarray(data["zk"]).reshape(-1)[0])
+        self.proxy_calls = 0
+
+    def __call__(self, i, j):
+        i = np.asarray(i, dtype=np.int64)
+        j = np.asarray(j, dtype=np.int64)
+        mat = self._kernel(self.r[:, j], self.n[:, j], self.r[:, i])
+        mat = mat * self.wts[j][None, :]
+        corrections = self.spmat[np.ix_(i, j)].tocoo()
+        if corrections.nnz:
+            mat[corrections.row, corrections.col] = corrections.data
+        return mat
+
+    def proxy_callback(self, pr, ptau, pw):
+        pr = np.asarray(pr)
+        ptau = np.asarray(ptau)
+        pw = np.asarray(pw).reshape(-1)
+
+        def pxyfun(x, slf, nbr, l, ctr):
+            self.proxy_calls += 1
+            slf = np.asarray(slf, dtype=np.int64)
+            nbr = np.asarray(nbr, dtype=np.int64)
+            lmax = float(np.max(l))
+            ctr = np.asarray(ctr).reshape(2, 1)
+            pxy = pr * lmax + ctr
+            pweights = lmax * pw
+            pnorm = np.vstack((-ptau[1, :], ptau[0, :]))
+            pnorm = pnorm / np.linalg.norm(pnorm, axis=0)
+            if nbr.size:
+                inside = np.max(np.abs((self.r[:, nbr] - ctr) / lmax), axis=0) < 1.5
+                nbr = nbr[inside]
+            src_to_proxy = self._kernel(self.r[:, slf], self.n[:, slf], pxy) * self.wts[slf][None, :]
+            proxy_to_src = self._kernel(pxy, pnorm, self.r[:, slf]) * pweights[None, :]
+            return np.vstack((src_to_proxy, proxy_to_src.T)), nbr
+
+        return pxyfun
+
+    def _kernel(self, src_r, src_n, targ_r):
+        rx = targ_r[0, :, None] - src_r[0, None, :]
+        ry = targ_r[1, :, None] - src_r[1, None, :]
+        r2 = rx * rx + ry * ry
+        with np.errstate(divide="ignore", invalid="ignore"):
+            if self.kernel_kind == "laplace_d":
+                return (rx * src_n[0, None, :] + ry * src_n[1, None, :]) / (2 * np.pi * r2)
+            r = np.sqrt(r2)
+            h1 = scipy.special.hankel1(1, self.zk * r)
+            grad_x = -0.25j * self.zk * h1 * rx / r
+            grad_y = -0.25j * self.zk * h1 * ry / r
+            return -(grad_x * src_n[0, None, :] + grad_y * src_n[1, None, :])
+
+
+def _matlab_path(path: Path) -> str:
+    return str(path).replace("\\", "/").replace("'", "''")
+
+
+def _relerr(a, b) -> float:
+    return float(np.linalg.norm(a - b) / max(np.linalg.norm(b), 1e-300))
+
+
+def _logdet_mod_error(a, b) -> float:
+    diff = np.asarray(a).item() - np.asarray(b).item()
+    if abs(diff.imag):
+        diff = diff - 2j * np.pi * np.round(diff.imag / (2 * np.pi))
+    return float(abs(diff))
 
 
 if __name__ == "__main__":
