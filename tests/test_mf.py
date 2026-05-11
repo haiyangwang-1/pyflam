@@ -43,6 +43,29 @@ def _spd_grid2(n):
     return A.tocsc()
 
 
+def _spd_grid3(n):
+    nd = n - 1
+    A = sp.lil_matrix((nd**3, nd**3))
+    for k in range(nd):
+        for j in range(nd):
+            for i in range(nd):
+                idx = i + nd * j + nd * nd * k
+                A[idx, idx] = 6.0
+                if i > 0:
+                    A[idx, idx - 1] = -1.0
+                if i + 1 < nd:
+                    A[idx, idx + 1] = -1.0
+                if j > 0:
+                    A[idx, idx - nd] = -1.0
+                if j + 1 < nd:
+                    A[idx, idx + nd] = -1.0
+                if k > 0:
+                    A[idx, idx - nd * nd] = -1.0
+                if k + 1 < nd:
+                    A[idx, idx + nd * nd] = -1.0
+    return A.tocsc()
+
+
 class MultifontalTests(unittest.TestCase):
     def test_mfx_mv_sv_logdet_match_dense(self):
         A = np.array(
@@ -110,13 +133,14 @@ class MultifontalTests(unittest.TestCase):
         self.assertAlmostEqual(float(np.real(mf_logdet(F))), np.linalg.slogdet(A)[1])
 
     def test_mf3_dimension_and_solve(self):
-        A_sparse = _spd_tridiag(8)
+        A_sparse = _spd_grid3(3)
         A = A_sparse.toarray()
         x = np.ones(8)
         F = mf3(A_sparse, n=3, occ=2)
 
-        np.testing.assert_allclose(mf_mv(F, x), A @ x)
-        np.testing.assert_allclose(mf_sv(F, x), np.linalg.solve(A, x))
+        self.assertTrue(F.hierarchical)
+        np.testing.assert_allclose(mf_mv(F, x), A @ x, atol=1e-12)
+        np.testing.assert_allclose(mf_sv(F, x), np.linalg.solve(A, x), atol=1e-12)
 
 
 if __name__ == "__main__":

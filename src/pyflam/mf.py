@@ -91,8 +91,7 @@ def mf3(A, n: int, occ: int, opts: dict[str, Any] | None = None) -> MFFactor:
         raise ValueError("leaf occupancy must be positive")
     if o["lvlmax"] < 1:
         raise ValueError("maximum tree depth must be at least 1")
-    N = (int(n) - 1) ** 3
-    return _make_factor(A, N, o)
+    return _mf3_hierarchical(A, int(n), int(occ), o)
 
 
 def mf_mv(F: MFFactor, X, trans: str = "n") -> np.ndarray:
@@ -480,6 +479,128 @@ def _mf2_hierarchical(A, n: int, occ: int, opts: dict[str, Any]) -> MFFactor:
                     upd_v.append(X.ravel())
 
                 factors.append(MFFactorBlock(sk=sk, rd=rd, L=L, U=Ufac, p=p, E=E, F=G))
+
+        lvp.append(len(factors))
+        coo = A_work.tocoo()
+        keep = rem[coo.row] & rem[coo.col]
+        if keep.any():
+            upd_i.append(coo.row[keep])
+            upd_j.append(coo.col[keep])
+            upd_v.append(coo.data[keep])
+        if upd_i:
+            rows = np.concatenate(upd_i)
+            cols = np.concatenate(upd_j)
+            vals = np.concatenate(upd_v)
+            A_work = sp.csc_matrix((vals, (rows, cols)), shape=(N, N))
+        else:
+            A_work = sp.csc_matrix((N, N), dtype=A0.dtype)
+
+    return MFFactor(
+        N=N,
+        nlvl=nlvl,
+        lvp=np.asarray(lvp, dtype=np.int64),
+        factors=factors,
+        symm=opts["symm"],
+        A=A,
+        A_sparse=A0,
+        hierarchical=True,
+        opts=dict(opts),
+    )
+
+
+def _mf3_hierarchical(A, n: int, occ: int, opts: dict[str, Any]) -> MFFactor:
+    nd = n - 1
+    N = nd**3
+    A0 = _as_square_sparse_matrix(A, N)
+    A_work = A0.copy().tocsc()
+    nlvl = min(float(opts["lvlmax"]), np.ceil(max(0.0, np.log2(n / occ))) + 1)
+    nlvl = int(nlvl)
+
+    factors: list[MFFactorBlock] = []
+    lvp = [0]
+    grid = np.arange(N, dtype=np.int64).reshape((nd, nd, nd), order="F")
+    rem = np.ones(N, dtype=bool)
+
+    w = n
+    for _ in range(nlvl):
+        w = int(np.ceil(w / 2))
+
+    for _lvl in range(nlvl, 0, -1):
+        w *= 2
+        nb = int(np.ceil(n / w))
+        upd_i: list[np.ndarray] = []
+        upd_j: list[np.ndarray] = []
+        upd_v: list[np.ndarray] = []
+
+        for i in range(1, nb + 1):
+            ia = (i - 1) * w
+            ib = i * w
+            is_ = np.arange(max(1, ia) - 1, min(nd, ib), dtype=np.int64)
+            for j in range(1, nb + 1):
+                ja = (j - 1) * w
+                jb = j * w
+                js = np.arange(max(1, ja) - 1, min(nd, jb), dtype=np.int64)
+                for k in range(1, nb + 1):
+                    ka = (k - 1) * w
+                    kb = k * w
+                    ks = np.arange(max(1, ka) - 1, min(nd, kb), dtype=np.int64)
+                    if is_.size == 0 or js.size == 0 or ks.size == 0:
+                        continue
+
+                    cell = grid[np.ix_(is_, js, ks)].ravel(order="F")
+                    slf = cell[rem[cell]]
+                    if slf.size == 0:
+                        continue
+
+                    kk = slf // (nd**2) + 1
+                    idx = slf - (nd**2) * (kk - 1)
+                    jj = idx // nd + 1
+                    ii = idx - nd * (jj - 1) + 1
+                    interior = (ii != ia) & (ii != ib) & (jj != ja) & (jj != jb) & (kk != ka) & (kk != kb)
+                    sk_pos = np.flatnonzero(~interior)
+                    rd_pos = np.flatnonzero(interior)
+                    if rd_pos.size == 0:
+                        continue
+                    rem[slf[rd_pos]] = False
+
+                    K = _spget_dense(A_work, slf, slf)
+                    Krr = K[np.ix_(rd_pos, rd_pos)]
+                    Ksr = K[np.ix_(sk_pos, rd_pos)]
+                    Krs = K[np.ix_(rd_pos, sk_pos)]
+
+                    Ufac = None
+                    p = None
+                    G = None
+                    if opts["symm"] == "p":
+                        L = np.linalg.cholesky(Krr)
+                        E = _triangular_solve(L, Ksr.T, lower=True).T
+                        X = -E @ E.conj().T
+                    elif opts["symm"] == "h":
+                        Lraw, D, perm = la.ldl(Krr, lower=True, hermitian=True, check_finite=False)
+                        perm = np.asarray(perm, dtype=np.int64)
+                        rd_pos = rd_pos[perm]
+                        Ksr = K[np.ix_(sk_pos, rd_pos)]
+                        L = Lraw[perm, :]
+                        Ufac = D
+                        E = _triangular_solve(L, Ksr.conj().T, lower=True, unit_diagonal=True).conj().T
+                        E = la.solve(D, E.T, check_finite=False).T
+                        X = -E @ (D @ E.conj().T)
+                    else:
+                        lu = _lu_factor_allow_singular(Krr)
+                        L, Ufac, p = _lu_block(lu, rd_pos.size)
+                        E = _triangular_solve(Ufac.T, Ksr.T, lower=True).T
+                        G = _triangular_solve(L, Krs[p, :], lower=True, unit_diagonal=True)
+                        X = -E @ G
+
+                    sk = slf[sk_pos]
+                    rd = slf[rd_pos]
+                    if sk.size:
+                        rows, cols = np.meshgrid(sk, sk, indexing="ij")
+                        upd_i.append(rows.ravel())
+                        upd_j.append(cols.ravel())
+                        upd_v.append(X.ravel())
+
+                    factors.append(MFFactorBlock(sk=sk, rd=rd, L=L, U=Ufac, p=p, E=E, F=G))
 
         lvp.append(len(factors))
         coo = A_work.tocoo()

@@ -30,6 +30,7 @@ from pyflam import (
     ifmm,
     ifmm_mv,
     mf2,
+    mf3,
     mf_diag,
     mf_logdet,
     mf_mv,
@@ -419,6 +420,58 @@ class MatlabParityTests(unittest.TestCase):
         np.testing.assert_allclose(mf_logdet(F1), data["ld1"].ravel()[0], rtol=1e-12, atol=1e-12)
         np.testing.assert_allclose(mf_diag(F1), data["D1"].ravel(), rtol=1e-12, atol=1e-12)
         np.testing.assert_allclose(mf_diag(F1, True), data["Di1"].ravel(), rtol=1e-8, atol=1e-8)
+
+    def test_mf3_grid_operator(self):
+        data = _run_flam_export(
+            "mf3_parity",
+            """
+                    n = 3;
+                    nd = n - 1;
+                    N = nd^3;
+                    A = sparse(N,N);
+                    for kk = 1:nd
+                      for jj = 1:nd
+                        for ii = 1:nd
+                          idx = ii + nd*(jj-1) + nd^2*(kk-1);
+                          A(idx,idx) = 6;
+                          if ii > 1,  A(idx,idx-1) = -1; end
+                          if ii < nd, A(idx,idx+1) = -1; end
+                          if jj > 1,  A(idx,idx-nd) = -1; end
+                          if jj < nd, A(idx,idx+nd) = -1; end
+                          if kk > 1,  A(idx,idx-nd^2) = -1; end
+                          if kk < nd, A(idx,idx+nd^2) = -1; end
+                        end
+                      end
+                    end
+                    X = reshape((0:(2*N-1))/(2*N+1),N,2);
+                    F = mf3(A,n,2,struct('symm','n'));
+                    Ymv = mf_mv(F,X);
+                    Ysv = mf_sv(F,X);
+                    ld = mf_logdet(F);
+                    nlvl = F.nlvl;
+                    lvp = F.lvp;
+                    nf = length(F.factors);
+                    sk_counts = zeros(1,nf);
+                    rd_counts = zeros(1,nf);
+                    for k = 1:nf
+                      sk_counts(k) = length(F.factors(k).sk);
+                      rd_counts(k) = length(F.factors(k).rd);
+                    end
+                    save('__OUT__','A','X','Ymv','Ysv','ld','nlvl','lvp','nf','sk_counts','rd_counts');
+                    exit;
+            """,
+        )
+
+        F = mf3(data["A"], n=3, occ=2)
+        self.assertTrue(F.hierarchical)
+        self.assertEqual(F.nlvl, int(data["nlvl"].ravel()[0]))
+        np.testing.assert_array_equal(F.lvp, data["lvp"].ravel().astype(np.int64))
+        self.assertEqual(len(F.factors), int(data["nf"].ravel()[0]))
+        np.testing.assert_array_equal([f.sk.size for f in F.factors], data["sk_counts"].ravel().astype(np.int64))
+        np.testing.assert_array_equal([f.rd.size for f in F.factors], data["rd_counts"].ravel().astype(np.int64))
+        np.testing.assert_allclose(mf_mv(F, data["X"]), data["Ymv"], rtol=1e-9, atol=1e-9)
+        np.testing.assert_allclose(mf_sv(F, data["X"]), data["Ysv"], rtol=1e-9, atol=1e-9)
+        np.testing.assert_allclose(mf_logdet(F), data["ld"].ravel()[0], rtol=1e-9, atol=1e-9)
 
     def test_hifde2_grid_operator(self):
         data = _run_flam_export(
