@@ -14,6 +14,9 @@ from pyflam import (
     rskelf_diag,
     rskelf_logdet,
     rskelf_mv,
+    rskelf_partial_info,
+    rskelf_partial_mv,
+    rskelf_partial_sv,
     rskelf_spdiag,
     rskelf_sv,
 )
@@ -142,6 +145,28 @@ class DenseAlgorithmTests(unittest.TestCase):
         np.testing.assert_allclose(CctX, A @ X, rtol=1e-9, atol=1e-9)
         np.testing.assert_allclose(rskelf_cholsv(F, rskelf_cholmv(F, X)), X, rtol=1e-10, atol=1e-10)
         np.testing.assert_allclose(rskelf_cholsv(F, rskelf_cholmv(F, X, "c"), "c"), X, rtol=1e-10, atol=1e-10)
+
+    def test_rskelf_partial_mv_sv_use_skeleton_callback(self):
+        x = np.linspace(0.0, 1.0, 20).reshape(1, -1)
+        A = kernel_matrix(x.ravel(), x.ravel()) + 3.0 * np.eye(20)
+        X = np.random.default_rng(6).standard_normal((20, 3))
+        F = rskelf(A, x, occ=2, rank_or_tol=1e-10, opts={"stop": 4})
+        sk, S = rskelf_partial_info(F)
+        Ask = A[np.ix_(sk, sk)] + S
+
+        def mvfun(Y, trans="n"):
+            return Ask @ Y if trans == "n" else Ask.conj().T @ Y
+
+        def svfun(Y, trans="n"):
+            return np.linalg.solve(Ask if trans == "n" else Ask.conj().T, Y)
+
+        self.assertGreater(len(F.factors), 0)
+        self.assertGreater(sk.size, 0)
+        self.assertLess(sk.size, A.shape[0])
+        np.testing.assert_allclose(rskelf_partial_mv(F, X, mvfun), A @ X, rtol=1e-9, atol=1e-9)
+        np.testing.assert_allclose(rskelf_partial_sv(F, X, svfun), np.linalg.solve(A, X), rtol=1e-9, atol=1e-9)
+        np.testing.assert_allclose(rskelf_partial_mv(F, X), A @ X, rtol=1e-9, atol=1e-9)
+        np.testing.assert_allclose(rskelf_partial_sv(F, X), np.linalg.solve(A, X), rtol=1e-9, atol=1e-9)
 
 
 if __name__ == "__main__":

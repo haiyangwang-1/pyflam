@@ -251,13 +251,13 @@ def rskelf_mv(F: RSkelFFactor, X, trans: str = "n") -> np.ndarray:
         X = X[:, None]
     if _has_complete_compact_factor(F):
         if F.symm == "n":
-            Y = _rskelf_mv_nn(F, X) if trans == "n" else _rskelf_mv_nc(F, X)
+            Y = _rskelf_mv_nn(F, X, 3) if trans == "n" else _rskelf_mv_nc(F, X, 3)
         elif F.symm == "s":
-            Y = _rskelf_mv_sn(F, X) if trans == "n" else _rskelf_mv_sc(F, X)
+            Y = _rskelf_mv_sn(F, X, 3) if trans == "n" else _rskelf_mv_sc(F, X, 3)
         elif F.symm == "h":
-            Y = _rskelf_mv_h(F, X)
+            Y = _rskelf_mv_h(F, X, 3)
         else:
-            Y = _rskelf_mv_p(F, X)
+            Y = _rskelf_mv_p(F, X, 3)
     else:
         if F.A_dense is None:
             raise ValueError("factor does not contain matrix data")
@@ -275,13 +275,13 @@ def rskelf_sv(F: RSkelFFactor, X, trans: str = "n") -> np.ndarray:
         X = X[:, None]
     if _has_complete_compact_factor(F):
         if F.symm == "n":
-            Y = _rskelf_sv_nn(F, X) if trans == "n" else _rskelf_sv_nc(F, X)
+            Y = _rskelf_sv_nn(F, X, 3) if trans == "n" else _rskelf_sv_nc(F, X, 3)
         elif F.symm == "s":
-            Y = _rskelf_sv_sn(F, X) if trans == "n" else _rskelf_sv_sc(F, X)
+            Y = _rskelf_sv_sn(F, X, 3) if trans == "n" else _rskelf_sv_sc(F, X, 3)
         elif F.symm == "h":
-            Y = _rskelf_sv_h(F, X)
+            Y = _rskelf_sv_h(F, X, 3)
         else:
-            Y = _rskelf_sv_p(F, X)
+            Y = _rskelf_sv_p(F, X, 3)
     elif F.chol is not None:
         if trans == "n":
             Y = la.cho_solve((F.chol, True), X)
@@ -412,202 +412,227 @@ def _prepare_rhs(F: RSkelFFactor, X) -> np.ndarray:
     return np.array(X, dtype=_factor_dtype(F, X), copy=True)
 
 
-def _rskelf_mv_nn(F: RSkelFFactor, X: np.ndarray) -> np.ndarray:
-    for f in F.factors:
-        sk, rd = f.sk, f.rd
-        X[sk, :] = X[sk, :] + f.T @ X[rd, :]
-        X[rd, :] = f.U @ X[rd, :]
-        X[rd, :] = X[rd, :] + f.F @ X[sk, :]
-    for f in reversed(F.factors):
-        sk, rd = f.sk, f.rd
-        X[sk, :] = X[sk, :] + f.E @ X[rd, :]
-        X[rd[f.p], :] = f.L @ X[rd, :]
-        X[rd, :] = X[rd, :] + f.T.conj().T @ X[sk, :]
+def _rskelf_mv_nn(F: RSkelFFactor, X: np.ndarray, mode: int = 3) -> np.ndarray:
+    if mode & 1:
+        for f in F.factors:
+            sk, rd = f.sk, f.rd
+            X[sk, :] = X[sk, :] + f.T @ X[rd, :]
+            X[rd, :] = f.U @ X[rd, :]
+            X[rd, :] = X[rd, :] + f.F @ X[sk, :]
+    if mode & 2:
+        for f in reversed(F.factors):
+            sk, rd = f.sk, f.rd
+            X[sk, :] = X[sk, :] + f.E @ X[rd, :]
+            X[rd[f.p], :] = f.L @ X[rd, :]
+            X[rd, :] = X[rd, :] + f.T.conj().T @ X[sk, :]
     return X
 
 
-def _rskelf_mv_nc(F: RSkelFFactor, X: np.ndarray) -> np.ndarray:
-    for f in F.factors:
-        sk, rd = f.sk, f.rd
-        X[sk, :] = X[sk, :] + f.T @ X[rd, :]
-        X[rd, :] = f.L.conj().T @ X[rd[f.p], :]
-        X[rd, :] = X[rd, :] + f.E.conj().T @ X[sk, :]
-    for f in reversed(F.factors):
-        sk, rd = f.sk, f.rd
-        X[sk, :] = X[sk, :] + f.F.conj().T @ X[rd, :]
-        X[rd, :] = f.U.conj().T @ X[rd, :]
-        X[rd, :] = X[rd, :] + f.T.conj().T @ X[sk, :]
+def _rskelf_mv_nc(F: RSkelFFactor, X: np.ndarray, mode: int = 3) -> np.ndarray:
+    if mode & 1:
+        for f in F.factors:
+            sk, rd = f.sk, f.rd
+            X[sk, :] = X[sk, :] + f.T @ X[rd, :]
+            X[rd, :] = f.L.conj().T @ X[rd[f.p], :]
+            X[rd, :] = X[rd, :] + f.E.conj().T @ X[sk, :]
+    if mode & 2:
+        for f in reversed(F.factors):
+            sk, rd = f.sk, f.rd
+            X[sk, :] = X[sk, :] + f.F.conj().T @ X[rd, :]
+            X[rd, :] = f.U.conj().T @ X[rd, :]
+            X[rd, :] = X[rd, :] + f.T.conj().T @ X[sk, :]
     return X
 
 
-def _rskelf_sv_nn(F: RSkelFFactor, X: np.ndarray) -> np.ndarray:
-    for f in F.factors:
-        sk, rd = f.sk, f.rd
-        X[rd, :] = X[rd, :] - f.T.conj().T @ X[sk, :]
-        X[rd, :] = la.solve_triangular(
-            f.L,
-            X[rd[f.p], :],
-            lower=True,
-            unit_diagonal=True,
-            check_finite=False,
-            overwrite_b=True,
-        )
-        X[sk, :] = X[sk, :] - f.E @ X[rd, :]
-    for f in reversed(F.factors):
-        sk, rd = f.sk, f.rd
-        X[rd, :] = X[rd, :] - f.F @ X[sk, :]
-        X[rd, :] = la.solve_triangular(f.U, X[rd, :], lower=False, check_finite=False, overwrite_b=True)
-        X[sk, :] = X[sk, :] - f.T @ X[rd, :]
+def _rskelf_sv_nn(F: RSkelFFactor, X: np.ndarray, mode: int = 3) -> np.ndarray:
+    if mode & 1:
+        for f in F.factors:
+            sk, rd = f.sk, f.rd
+            X[rd, :] = X[rd, :] - f.T.conj().T @ X[sk, :]
+            X[rd, :] = la.solve_triangular(
+                f.L,
+                X[rd[f.p], :],
+                lower=True,
+                unit_diagonal=True,
+                check_finite=False,
+                overwrite_b=True,
+            )
+            X[sk, :] = X[sk, :] - f.E @ X[rd, :]
+    if mode & 2:
+        for f in reversed(F.factors):
+            sk, rd = f.sk, f.rd
+            X[rd, :] = X[rd, :] - f.F @ X[sk, :]
+            X[rd, :] = la.solve_triangular(f.U, X[rd, :], lower=False, check_finite=False, overwrite_b=True)
+            X[sk, :] = X[sk, :] - f.T @ X[rd, :]
     return X
 
 
-def _rskelf_sv_nc(F: RSkelFFactor, X: np.ndarray) -> np.ndarray:
-    for f in F.factors:
-        sk, rd = f.sk, f.rd
-        X[rd, :] = X[rd, :] - f.T.conj().T @ X[sk, :]
-        X[rd, :] = la.solve_triangular(
-            f.U.conj().T,
-            X[rd, :],
-            lower=True,
-            check_finite=False,
-            overwrite_b=True,
-        )
-        X[sk, :] = X[sk, :] - f.F.conj().T @ X[rd, :]
-    for f in reversed(F.factors):
-        sk, rd = f.sk, f.rd
-        X[rd, :] = X[rd, :] - f.E.conj().T @ X[sk, :]
-        X[rd[f.p], :] = la.solve_triangular(
-            f.L.conj().T,
-            X[rd, :],
-            lower=False,
-            unit_diagonal=True,
-            check_finite=False,
-            overwrite_b=True,
-        )
-        X[sk, :] = X[sk, :] - f.T @ X[rd, :]
+def _rskelf_sv_nc(F: RSkelFFactor, X: np.ndarray, mode: int = 3) -> np.ndarray:
+    if mode & 1:
+        for f in F.factors:
+            sk, rd = f.sk, f.rd
+            X[rd, :] = X[rd, :] - f.T.conj().T @ X[sk, :]
+            X[rd, :] = la.solve_triangular(
+                f.U.conj().T,
+                X[rd, :],
+                lower=True,
+                check_finite=False,
+                overwrite_b=True,
+            )
+            X[sk, :] = X[sk, :] - f.F.conj().T @ X[rd, :]
+    if mode & 2:
+        for f in reversed(F.factors):
+            sk, rd = f.sk, f.rd
+            X[rd, :] = X[rd, :] - f.E.conj().T @ X[sk, :]
+            X[rd[f.p], :] = la.solve_triangular(
+                f.L.conj().T,
+                X[rd, :],
+                lower=False,
+                unit_diagonal=True,
+                check_finite=False,
+                overwrite_b=True,
+            )
+            X[sk, :] = X[sk, :] - f.T @ X[rd, :]
+    return X
+
+def _rskelf_mv_sn(F: RSkelFFactor, X: np.ndarray, mode: int = 3) -> np.ndarray:
+    if mode & 1:
+        for f in F.factors:
+            sk, rd = f.sk, f.rd
+            X[sk, :] = X[sk, :] + f.T @ X[rd, :]
+            X[rd, :] = f.U @ X[rd, :]
+            X[rd, :] = X[rd, :] + f.F @ X[sk, :]
+    if mode & 2:
+        for f in reversed(F.factors):
+            sk, rd = f.sk, f.rd
+            X[sk, :] = X[sk, :] + f.E @ X[rd, :]
+            X[rd[f.p], :] = f.L @ X[rd, :]
+            X[rd, :] = X[rd, :] + f.T.T @ X[sk, :]
     return X
 
 
-def _rskelf_mv_sn(F: RSkelFFactor, X: np.ndarray) -> np.ndarray:
-    for f in F.factors:
-        sk, rd = f.sk, f.rd
-        X[sk, :] = X[sk, :] + f.T @ X[rd, :]
-        X[rd, :] = f.U @ X[rd, :]
-        X[rd, :] = X[rd, :] + f.F @ X[sk, :]
-    for f in reversed(F.factors):
-        sk, rd = f.sk, f.rd
-        X[sk, :] = X[sk, :] + f.E @ X[rd, :]
-        X[rd[f.p], :] = f.L @ X[rd, :]
-        X[rd, :] = X[rd, :] + f.T.T @ X[sk, :]
+def _rskelf_mv_sc(F: RSkelFFactor, X: np.ndarray, mode: int = 3) -> np.ndarray:
+    if mode & 1:
+        for f in F.factors:
+            sk, rd = f.sk, f.rd
+            X[sk, :] = X[sk, :] + np.conj(f.T) @ X[rd, :]
+            X[rd, :] = f.L.conj().T @ X[rd[f.p], :]
+            X[rd, :] = X[rd, :] + f.E.conj().T @ X[sk, :]
+    if mode & 2:
+        for f in reversed(F.factors):
+            sk, rd = f.sk, f.rd
+            X[sk, :] = X[sk, :] + f.F.conj().T @ X[rd, :]
+            X[rd, :] = f.U.conj().T @ X[rd, :]
+            X[rd, :] = X[rd, :] + f.T.conj().T @ X[sk, :]
     return X
 
 
-def _rskelf_mv_sc(F: RSkelFFactor, X: np.ndarray) -> np.ndarray:
-    for f in F.factors:
-        sk, rd = f.sk, f.rd
-        X[sk, :] = X[sk, :] + np.conj(f.T) @ X[rd, :]
-        X[rd, :] = f.L.conj().T @ X[rd[f.p], :]
-        X[rd, :] = X[rd, :] + f.E.conj().T @ X[sk, :]
-    for f in reversed(F.factors):
-        sk, rd = f.sk, f.rd
-        X[sk, :] = X[sk, :] + f.F.conj().T @ X[rd, :]
-        X[rd, :] = f.U.conj().T @ X[rd, :]
-        X[rd, :] = X[rd, :] + f.T.conj().T @ X[sk, :]
+def _rskelf_sv_sn(F: RSkelFFactor, X: np.ndarray, mode: int = 3) -> np.ndarray:
+    if mode & 1:
+        for f in F.factors:
+            sk, rd = f.sk, f.rd
+            X[rd, :] = X[rd, :] - f.T.T @ X[sk, :]
+            X[rd, :] = la.solve_triangular(
+                f.L,
+                X[rd[f.p], :],
+                lower=True,
+                unit_diagonal=True,
+                check_finite=False,
+                overwrite_b=True,
+            )
+            X[sk, :] = X[sk, :] - f.E @ X[rd, :]
+    if mode & 2:
+        for f in reversed(F.factors):
+            sk, rd = f.sk, f.rd
+            X[rd, :] = X[rd, :] - f.F @ X[sk, :]
+            X[rd, :] = la.solve_triangular(f.U, X[rd, :], lower=False, check_finite=False, overwrite_b=True)
+            X[sk, :] = X[sk, :] - f.T @ X[rd, :]
     return X
 
 
-def _rskelf_sv_sn(F: RSkelFFactor, X: np.ndarray) -> np.ndarray:
-    for f in F.factors:
-        sk, rd = f.sk, f.rd
-        X[rd, :] = X[rd, :] - f.T.T @ X[sk, :]
-        X[rd, :] = la.solve_triangular(
-            f.L,
-            X[rd[f.p], :],
-            lower=True,
-            unit_diagonal=True,
-            check_finite=False,
-            overwrite_b=True,
-        )
-        X[sk, :] = X[sk, :] - f.E @ X[rd, :]
-    for f in reversed(F.factors):
-        sk, rd = f.sk, f.rd
-        X[rd, :] = X[rd, :] - f.F @ X[sk, :]
-        X[rd, :] = la.solve_triangular(f.U, X[rd, :], lower=False, check_finite=False, overwrite_b=True)
-        X[sk, :] = X[sk, :] - f.T @ X[rd, :]
+def _rskelf_sv_sc(F: RSkelFFactor, X: np.ndarray, mode: int = 3) -> np.ndarray:
+    if mode & 1:
+        for f in F.factors:
+            sk, rd = f.sk, f.rd
+            X[rd, :] = X[rd, :] - f.T.conj().T @ X[sk, :]
+            X[rd, :] = la.solve_triangular(
+                f.U.conj().T,
+                X[rd, :],
+                lower=True,
+                check_finite=False,
+                overwrite_b=True,
+            )
+            X[sk, :] = X[sk, :] - f.F.conj().T @ X[rd, :]
+    if mode & 2:
+        for f in reversed(F.factors):
+            sk, rd = f.sk, f.rd
+            X[rd, :] = X[rd, :] - f.E.conj().T @ X[sk, :]
+            X[rd[f.p], :] = la.solve_triangular(
+                f.L.conj().T,
+                X[rd, :],
+                lower=False,
+                unit_diagonal=True,
+                check_finite=False,
+                overwrite_b=True,
+            )
+            X[sk, :] = X[sk, :] - np.conj(f.T) @ X[rd, :]
     return X
 
 
-def _rskelf_sv_sc(F: RSkelFFactor, X: np.ndarray) -> np.ndarray:
-    for f in F.factors:
-        sk, rd = f.sk, f.rd
-        X[rd, :] = X[rd, :] - f.T.conj().T @ X[sk, :]
-        X[rd, :] = la.solve_triangular(
-            f.U.conj().T,
-            X[rd, :],
-            lower=True,
-            check_finite=False,
-            overwrite_b=True,
-        )
-        X[sk, :] = X[sk, :] - f.F.conj().T @ X[rd, :]
-    for f in reversed(F.factors):
-        sk, rd = f.sk, f.rd
-        X[rd, :] = X[rd, :] - f.E.conj().T @ X[sk, :]
-        X[rd[f.p], :] = la.solve_triangular(
-            f.L.conj().T,
-            X[rd, :],
-            lower=False,
-            unit_diagonal=True,
-            check_finite=False,
-            overwrite_b=True,
-        )
-        X[sk, :] = X[sk, :] - np.conj(f.T) @ X[rd, :]
+def _rskelf_mv_h(F: RSkelFFactor, X: np.ndarray, mode: int = 3) -> np.ndarray:
+    if mode & 1:
+        for f in F.factors:
+            sk, rd = f.sk, f.rd
+            X[sk, :] = X[sk, :] + f.T @ X[rd, :]
+            X[rd, :] = f.L.conj().T @ X[rd, :]
+            X[rd, :] = X[rd, :] + f.E.conj().T @ X[sk, :]
+            X[rd, :] = f.U @ X[rd, :]
+    if mode & 2:
+        for f in reversed(F.factors):
+            sk, rd = f.sk, f.rd
+            X[sk, :] = X[sk, :] + f.E @ X[rd, :]
+            X[rd, :] = f.L @ X[rd, :]
+            X[rd, :] = X[rd, :] + f.T.conj().T @ X[sk, :]
     return X
 
 
-def _rskelf_mv_h(F: RSkelFFactor, X: np.ndarray) -> np.ndarray:
-    for f in F.factors:
-        sk, rd = f.sk, f.rd
-        X[sk, :] = X[sk, :] + f.T @ X[rd, :]
-        X[rd, :] = f.L.conj().T @ X[rd, :]
-        X[rd, :] = X[rd, :] + f.E.conj().T @ X[sk, :]
-        X[rd, :] = f.U @ X[rd, :]
-    for f in reversed(F.factors):
-        sk, rd = f.sk, f.rd
-        X[sk, :] = X[sk, :] + f.E @ X[rd, :]
-        X[rd, :] = f.L @ X[rd, :]
-        X[rd, :] = X[rd, :] + f.T.conj().T @ X[sk, :]
+def _rskelf_sv_h(F: RSkelFFactor, X: np.ndarray, mode: int = 3) -> np.ndarray:
+    if mode & 1:
+        for f in F.factors:
+            sk, rd = f.sk, f.rd
+            X[rd, :] = X[rd, :] - f.T.conj().T @ X[sk, :]
+            X[rd, :] = la.solve_triangular(f.L, X[rd, :], lower=True, unit_diagonal=True, check_finite=False)
+            X[sk, :] = X[sk, :] - f.E @ X[rd, :]
+            X[rd, :] = la.solve(f.U, X[rd, :], check_finite=False)
+    if mode & 2:
+        for f in reversed(F.factors):
+            sk, rd = f.sk, f.rd
+            X[rd, :] = X[rd, :] - f.E.conj().T @ X[sk, :]
+            X[rd, :] = la.solve_triangular(
+                f.L.conj().T,
+                X[rd, :],
+                lower=False,
+                unit_diagonal=True,
+                check_finite=False,
+            )
+            X[sk, :] = X[sk, :] - f.T @ X[rd, :]
     return X
 
 
-def _rskelf_sv_h(F: RSkelFFactor, X: np.ndarray) -> np.ndarray:
-    for f in F.factors:
-        sk, rd = f.sk, f.rd
-        X[rd, :] = X[rd, :] - f.T.conj().T @ X[sk, :]
-        X[rd, :] = la.solve_triangular(f.L, X[rd, :], lower=True, unit_diagonal=True, check_finite=False)
-        X[sk, :] = X[sk, :] - f.E @ X[rd, :]
-        X[rd, :] = la.solve(f.U, X[rd, :], check_finite=False)
-    for f in reversed(F.factors):
-        sk, rd = f.sk, f.rd
-        X[rd, :] = X[rd, :] - f.E.conj().T @ X[sk, :]
-        X[rd, :] = la.solve_triangular(
-            f.L.conj().T,
-            X[rd, :],
-            lower=False,
-            unit_diagonal=True,
-            check_finite=False,
-        )
-        X[sk, :] = X[sk, :] - f.T @ X[rd, :]
+def _rskelf_mv_p(F: RSkelFFactor, X: np.ndarray, mode: int = 3) -> np.ndarray:
+    if mode & 1:
+        X = _rskelf_cholmv_p(F, X, "c")
+    if mode & 2:
+        X = _rskelf_cholmv_p(F, X, "n")
     return X
 
 
-def _rskelf_mv_p(F: RSkelFFactor, X: np.ndarray) -> np.ndarray:
-    X = _rskelf_cholmv_p(F, X, "c")
-    return _rskelf_cholmv_p(F, X, "n")
-
-
-def _rskelf_sv_p(F: RSkelFFactor, X: np.ndarray) -> np.ndarray:
-    X = _rskelf_cholsv_p(F, X, "n")
-    return _rskelf_cholsv_p(F, X, "c")
+def _rskelf_sv_p(F: RSkelFFactor, X: np.ndarray, mode: int = 3) -> np.ndarray:
+    if mode & 1:
+        X = _rskelf_cholsv_p(F, X, "n")
+    if mode & 2:
+        X = _rskelf_cholsv_p(F, X, "c")
+    return X
 
 
 def _rskelf_cholmv_p(F: RSkelFFactor, X: np.ndarray, trans: str) -> np.ndarray:
@@ -655,11 +680,79 @@ def rskelf_partial_info(F: RSkelFFactor):
 
 
 def rskelf_partial_mv(F: RSkelFFactor, X, mvfun=None, trans: str = "n") -> np.ndarray:
-    return rskelf_mv(F, X, trans)
+    trans = chktrans(trans)
+    if trans == "t":
+        return np.conj(rskelf_partial_mv(F, np.conj(X), mvfun, "c"))
+    X = _prepare_rhs(F, X)
+    one_dim = X.ndim == 1
+    if one_dim:
+        X = X[:, None]
+    X = _rskelf_apply_mode(F, X, trans, mode=1, solve=False)
+    if F.Si is not None and F.Si.size:
+        fun = mvfun if mvfun is not None else _default_partial_mvfun(F)
+        X[F.Si, :] = fun(X[F.Si, :], trans)
+    X = _rskelf_apply_mode(F, X, trans, mode=2, solve=False)
+    return X[:, 0] if one_dim else X
 
 
 def rskelf_partial_sv(F: RSkelFFactor, X, svfun=None, trans: str = "n") -> np.ndarray:
-    return rskelf_sv(F, X, trans)
+    trans = chktrans(trans)
+    if trans == "t":
+        return np.conj(rskelf_partial_sv(F, np.conj(X), svfun, "c"))
+    X = _prepare_rhs(F, X)
+    one_dim = X.ndim == 1
+    if one_dim:
+        X = X[:, None]
+    X = _rskelf_apply_mode(F, X, trans, mode=1, solve=True)
+    if F.Si is not None and F.Si.size:
+        fun = svfun if svfun is not None else _default_partial_svfun(F)
+        X[F.Si, :] = fun(X[F.Si, :], trans)
+    X = _rskelf_apply_mode(F, X, trans, mode=2, solve=True)
+    return X[:, 0] if one_dim else X
+
+
+def _rskelf_apply_mode(F: RSkelFFactor, X: np.ndarray, trans: str, mode: int, solve: bool) -> np.ndarray:
+    if F.symm == "n":
+        if solve:
+            return _rskelf_sv_nn(F, X, mode) if trans == "n" else _rskelf_sv_nc(F, X, mode)
+        return _rskelf_mv_nn(F, X, mode) if trans == "n" else _rskelf_mv_nc(F, X, mode)
+    if F.symm == "s":
+        if solve:
+            return _rskelf_sv_sn(F, X, mode) if trans == "n" else _rskelf_sv_sc(F, X, mode)
+        return _rskelf_mv_sn(F, X, mode) if trans == "n" else _rskelf_mv_sc(F, X, mode)
+    if F.symm == "h":
+        return _rskelf_sv_h(F, X, mode) if solve else _rskelf_mv_h(F, X, mode)
+    return _rskelf_sv_p(F, X, mode) if solve else _rskelf_mv_p(F, X, mode)
+
+
+def _default_partial_matrix(F: RSkelFFactor) -> np.ndarray:
+    if F.Si is None or F.A_dense is None or F.S is None:
+        raise ValueError("partial factor does not contain skeleton matrix data")
+    return F.A_dense[np.ix_(F.Si, F.Si)] + F.S
+
+
+def _default_partial_mvfun(F: RSkelFFactor):
+    A = _default_partial_matrix(F)
+
+    def mvfun(X, trans="n"):
+        return apply_transpose(A, X, chktrans(trans))
+
+    return mvfun
+
+
+def _default_partial_svfun(F: RSkelFFactor):
+    A = _default_partial_matrix(F)
+    lu = la.lu_factor(A, check_finite=False)
+
+    def svfun(X, trans="n"):
+        trans = chktrans(trans)
+        if trans == "n":
+            return la.lu_solve(lu, X, check_finite=False)
+        if trans == "t":
+            return la.lu_solve(lu, X, trans=1, check_finite=False)
+        return la.lu_solve(lu, X, trans=2, check_finite=False)
+
+    return svfun
 
 
 __all__ = [
