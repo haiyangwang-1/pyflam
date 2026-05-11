@@ -175,7 +175,7 @@ bug instead of silently skipping.
 
 ## 10. Implement Fast Selected Inversion
 
-- [ ] Port `rskelf/spdiag/*` selected-inversion algorithms.
+- [x] Port `rskelf/spdiag/*` selected-inversion algorithms.
 - [x] Replace correctness-first `rskelf_diag` identity-RHS extraction with the
       selected-inversion implementation.
 - [ ] Port `mf/spdiag/*` selected-inversion algorithms.

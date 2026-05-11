@@ -29,7 +29,6 @@ from .rskelf import (
     rskelf_diag,
     rskelf_logdet,
     rskelf_mv,
-    rskelf_spdiag,
     rskelf_sv,
 )
 
@@ -133,7 +132,7 @@ def hifde_diag(F: HIFDEFactor, dinv: bool | int = False, opts: dict[str, Any] | 
 
 
 def hifde_spdiag(F: HIFDEFactor, dinv: bool | int = False):
-    return rskelf_spdiag(F.backend, dinv)
+    return hifde_diag(F, dinv)
 
 
 def _hifde_opts(opts: dict[str, Any] | None, ext: bool, point_dim: int) -> dict[str, Any]:

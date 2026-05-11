@@ -27,7 +27,6 @@ from .rskelf import (
     rskelf_diag,
     rskelf_logdet,
     rskelf_mv,
-    rskelf_spdiag,
     rskelf_sv,
 )
 
@@ -177,7 +176,7 @@ def hifie_diag(F: HIFIEFactor, dinv: bool | int = False, opts: dict[str, Any] | 
 
 
 def hifie_spdiag(F: HIFIEFactor, dinv: bool | int = False):
-    return rskelf_spdiag(F.backend, dinv)
+    return hifie_diag(F, dinv)
 
 
 def _hifie(A, x, occ, rank_or_tol, pxyfun, opts, variant: str) -> HIFIEFactor:

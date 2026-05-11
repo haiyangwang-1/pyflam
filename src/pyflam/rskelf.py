@@ -397,7 +397,91 @@ def rskelf_diag(F: RSkelFFactor, dinv: bool | int = False, opts: dict[str, Any] 
 def rskelf_spdiag(F: RSkelFFactor, dinv: bool | int = False) -> np.ndarray:
     """Extract a diagonal using the sparse-apply style FLAM API."""
 
+    if _has_complete_compact_factor(F):
+        return _rskelf_spdiag_sparse(F, dinv)
     return rskelf_diag(F, dinv)
+
+
+def _rskelf_spdiag_sparse(F: RSkelFFactor, dinv: bool | int = False) -> np.ndarray:
+    spinfo_i, spinfo_t = _rskelf_spdiag_info(F)
+    D = np.zeros(F.N, dtype=_factor_dtype(F, np.array(0.0)))
+    P = -np.ones(F.N, dtype=np.int64)
+    for row_idx in range(spinfo_i.size - 1, -1, -1):
+        factor_ids = spinfo_t[row_idx]
+        factor_ids = factor_ids[factor_ids >= 0]
+        if factor_ids.size == 0:
+            continue
+        active = _concat_indices(
+            [F.factors[int(j)].sk for j in factor_ids] + [F.factors[int(j)].rd for j in factor_ids]
+        )
+        active = np.unique(active)
+        if active.size == 0:
+            continue
+        P[active] = np.arange(active.size, dtype=np.int64)
+
+        leaf = F.factors[int(spinfo_i[row_idx])]
+        slf = np.concatenate((leaf.sk, leaf.rd))
+        if slf.size == 0:
+            continue
+        local_factors = [_localize_rskelf_block(F.factors[int(j)], P) for j in factor_ids]
+        local = RSkelFFactor(
+            N=active.size,
+            nlvl=1,
+            lvp=np.array([0, len(local_factors)], dtype=np.int64),
+            factors=local_factors,
+            symm=F.symm,
+            Si=np.array([], dtype=np.int64),
+            S=sp.csr_matrix((0, 0), dtype=D.dtype),
+        )
+        Y = np.zeros((active.size, slf.size), dtype=D.dtype)
+        Y[P[slf], :] = np.eye(slf.size, dtype=D.dtype)
+        Y = rskelf_sv(local, Y) if dinv else rskelf_mv(local, Y)
+        D[slf] = np.diag(Y[P[slf], :])
+    return D
+
+
+def _rskelf_spdiag_info(F: RSkelFFactor) -> tuple[np.ndarray, np.ndarray]:
+    n = int(F.lvp[-1])
+    t = -np.ones((n, F.nlvl), dtype=np.int64)
+    x = -np.ones(F.N, dtype=np.int64)
+    for lvl in range(F.nlvl):
+        for factor_idx in range(int(F.lvp[lvl]), int(F.lvp[lvl + 1])):
+            f = F.factors[factor_idx]
+            slf = np.concatenate((f.sk, f.rd))
+            t[factor_idx, lvl] = factor_idx
+            if lvl > 0 and slf.size:
+                child = np.unique(x[slf])
+                child = child[child >= 0]
+                t[child, lvl] = factor_idx
+            if slf.size:
+                x[slf] = factor_idx
+
+    for factor_idx in range(n - 1, -1, -1):
+        cols = np.flatnonzero(t[factor_idx] >= 0)
+        if cols.size:
+            lvl = int(cols[-1])
+            parent = int(t[factor_idx, lvl])
+            if lvl + 1 < F.nlvl:
+                t[factor_idx, lvl + 1 :] = t[parent, lvl + 1 :]
+        f = F.factors[factor_idx]
+        slf = np.concatenate((f.sk, f.rd))
+        if slf.size:
+            x[slf] = factor_idx
+    leaves = np.unique(x[x >= 0])
+    return leaves.astype(np.int64), t[leaves]
+
+
+def _localize_rskelf_block(f: RSkelFFactorBlock, P: np.ndarray) -> RSkelFFactorBlock:
+    return RSkelFFactorBlock(
+        sk=P[f.sk],
+        rd=P[f.rd],
+        T=f.T,
+        L=f.L,
+        U=f.U,
+        p=f.p,
+        E=f.E,
+        F=f.F,
+    )
 
 
 def _rskelf_diag_unfold(F: RSkelFFactor, dinv: bool | int = False, *, external: bool = False) -> np.ndarray:

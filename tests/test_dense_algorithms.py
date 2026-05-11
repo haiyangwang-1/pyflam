@@ -311,6 +311,21 @@ class DenseAlgorithmTests(unittest.TestCase):
             rskelf_mod.rskelf_mv = old_mv
             rskelf_mod.rskelf_sv = old_sv
 
+    def test_rskelf_spdiag_uses_sparse_propagation_for_complete_factors(self):
+        rskelf_mod = importlib.import_module("pyflam.rskelf")
+        F = rskelf(self.A, self.x, occ=2, rank_or_tol=1e-10)
+        old_diag = rskelf_mod.rskelf_diag
+
+        def blocked(*args, **kwargs):
+            raise AssertionError("matrix unfolding fallback was used")
+
+        try:
+            rskelf_mod.rskelf_diag = blocked
+            np.testing.assert_allclose(rskelf_mod.rskelf_spdiag(F), np.diag(self.A), rtol=1e-9, atol=1e-9)
+            np.testing.assert_allclose(rskelf_mod.rskelf_spdiag(F, True), np.diag(np.linalg.inv(self.A)), rtol=1e-9, atol=1e-9)
+        finally:
+            rskelf_mod.rskelf_diag = old_diag
+
     def test_degenerate_points_end_to_end(self):
         x = np.array([0.0, 0.0, 0.0, 0.4, 0.4, 0.8, 1.0, 1.0]).reshape(1, -1)
         A = kernel_matrix(x.ravel(), x.ravel()) + 3.0 * np.eye(x.shape[1])
