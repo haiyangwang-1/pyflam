@@ -20,6 +20,7 @@ from .core import (
     spsymm,
     spsymm2,
 )
+from .geom import tri3geom, trisphere_subdiv
 from .hifie import (
     HIFIEFactor,
     hifie2,
@@ -160,4 +161,6 @@ __all__ = [
     "sppush3",
     "spsymm",
     "spsymm2",
+    "tri3geom",
+    "trisphere_subdiv",
 ]
