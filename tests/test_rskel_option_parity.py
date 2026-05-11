@@ -7,7 +7,7 @@ from pathlib import Path
 import numpy as np
 
 from matlab_parity_utils import MATLAB, require_paths, run_matlab_export
-from pyflam import rskel, rskel_mv
+from pyflam import rskel, rskel_mv, rskel_xsp
 
 
 _DEFAULT_FLAM_REF = Path(tempfile.gettempdir()) / "flam-reference"
@@ -353,6 +353,48 @@ class RSkelOptionParityTests(unittest.TestCase):
         self.assertEqual(len(F.U), int(data["nu"].ravel()[0]))
         np.testing.assert_allclose(rskel_mv(F, data["X"]), data["Ymv"], rtol=1e-9, atol=1e-9)
         np.testing.assert_allclose(rskel_mv(F, data["Z"], trans="c"), data["Yadj"], rtol=1e-9, atol=1e-9)
+
+    def test_xsp_symmetric_hermitian_positive_modes_match_matlab(self):
+        for symm in ("s", "h", "p"):
+            with self.subTest(symm=symm):
+                data = run_matlab_export(
+                    f"rskel_xsp_{symm}",
+                    textwrap.dedent(
+                        f"""
+                        addpath(genpath('{str(FLAM_REF).replace("'", "''")}'));
+                        n = 14;
+                        x = linspace(0,1,n);
+                        row = reshape(x,[],1);
+                        col = reshape(x,1,[]);
+                        dx = row - col;
+                        if '{symm}' == 's'
+                          Ad = 1./(1 + abs(dx)) + 2*eye(n) + 0.02i*(row + col);
+                        else
+                          Ad = 1./(1 + abs(dx)) + 2*eye(n) + 0.02i*dx;
+                        end
+                        F = rskel(Ad,x,x,3,1e-10,[],struct('symm','{symm}'));
+                        [S,p,q] = rskel_xsp(F);
+                        mapped_to_h = strcmp(F.symm,'h');
+                        save('__OUT__','Ad','S','p','q','mapped_to_h');
+                        exit;
+                        """
+                    ),
+                )
+
+                x = np.linspace(0.0, 1.0, 14).reshape(1, -1)
+                F = rskel(data["Ad"], x, x, occ=3, rank_or_tol=1e-10, opts={"symm": symm})
+                S, p, q = rskel_xsp(F)
+
+                if symm == "p":
+                    self.assertEqual(F.symm, "h")
+                    self.assertEqual(int(data["mapped_to_h"].ravel()[0]), 1)
+                else:
+                    self.assertEqual(F.symm, symm)
+                self.assertEqual(S.shape, data["S"].shape)
+                self.assertEqual(S.nnz, data["S"].nnz)
+                np.testing.assert_allclose((S - data["S"]).toarray(), 0, rtol=5e-8, atol=5e-8)
+                np.testing.assert_array_equal(p, data["p"].ravel().astype(np.int64) - 1)
+                np.testing.assert_array_equal(q, data["q"].ravel().astype(np.int64) - 1)
 
 
 if __name__ == "__main__":
