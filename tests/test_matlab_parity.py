@@ -35,6 +35,7 @@ from pyflam import (
     hifie3x,
     hifie_cholmv,
     hifie_cholsv,
+    hifie_diag,
     hifie_id,
     hifie_idx,
     hifie_logdet,
@@ -187,6 +188,8 @@ class MatlabParityTests(unittest.TestCase):
                     Y2 = hifie_mv(F2,X2);
                     Z2 = hifie_sv(F2,X2);
                     ld2 = hifie_logdet(F2);
+                    D2 = hifie_diag(F2);
+                    Di2 = hifie_diag(F2,1);
                     lvp2 = F2.lvp; nf2 = length(F2.factors);
 
                     F2x = hifie2x(A2,x2,4,1e-10,[],struct('symm','n'));
@@ -213,7 +216,7 @@ class MatlabParityTests(unittest.TestCase):
                     Z3x = hifie_sv(F3x,X3,'t');
                     ld3x = hifie_logdet(F3x);
 
-                    save('__OUT__','A2','A3','x2','x3','X2','X3','Y2','Z2','ld2','lvp2','nf2', ...
+                    save('__OUT__','A2','A3','x2','x3','X2','X3','Y2','Z2','ld2','D2','Di2','lvp2','nf2', ...
                          'Y2x','Z2x','ld2x','Y3','Z3','ld3','Y3x','Z3x','ld3x');
                     exit;
             """,
@@ -227,6 +230,8 @@ class MatlabParityTests(unittest.TestCase):
         np.testing.assert_allclose(hifie_mv(F2, data["X2"]), data["Y2"], rtol=1e-9, atol=1e-9)
         np.testing.assert_allclose(hifie_sv(F2, data["X2"]), data["Z2"], rtol=1e-9, atol=1e-9)
         np.testing.assert_allclose(hifie_logdet(F2), data["ld2"].ravel()[0], rtol=1e-9, atol=1e-9)
+        np.testing.assert_allclose(hifie_diag(F2), data["D2"].ravel(), rtol=1e-9, atol=1e-9)
+        np.testing.assert_allclose(hifie_diag(F2, True), data["Di2"].ravel(), rtol=1e-9, atol=1e-9)
 
         F2x = hifie2x(data["A2"], data["x2"], occ=4, rank_or_tol=1e-10)
         np.testing.assert_allclose(hifie_mv(F2x, data["X2"], trans="t"), data["Y2x"], rtol=1e-9, atol=1e-9)

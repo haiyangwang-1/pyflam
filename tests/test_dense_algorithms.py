@@ -1,4 +1,5 @@
 import unittest
+import importlib
 
 import numpy as np
 import scipy.sparse as sp
@@ -292,6 +293,23 @@ class DenseAlgorithmTests(unittest.TestCase):
         np.testing.assert_allclose(rskelf_diag(F), np.diag(rskelf_mv(F, eye)), rtol=1e-9, atol=1e-9)
         np.testing.assert_allclose(rskelf_diag(F, True), np.diag(rskelf_sv(F, eye)), rtol=1e-9, atol=1e-9)
         self.assertGreater(np.linalg.norm(rskelf_diag(F) - np.diag(A)), 1.0)
+
+    def test_rskelf_diag_uses_selected_unfolding_for_complete_factors(self):
+        rskelf_mod = importlib.import_module("pyflam.rskelf")
+        F = rskelf(self.A, self.x, occ=2, rank_or_tol=1e-10)
+        old_mv, old_sv = rskelf_mod.rskelf_mv, rskelf_mod.rskelf_sv
+
+        def blocked(*args, **kwargs):
+            raise AssertionError("identity RHS fallback was used")
+
+        try:
+            rskelf_mod.rskelf_mv = blocked
+            rskelf_mod.rskelf_sv = blocked
+            np.testing.assert_allclose(rskelf_mod.rskelf_diag(F), np.diag(self.A), rtol=1e-9, atol=1e-9)
+            np.testing.assert_allclose(rskelf_mod.rskelf_diag(F, True), np.diag(np.linalg.inv(self.A)), rtol=1e-9, atol=1e-9)
+        finally:
+            rskelf_mod.rskelf_mv = old_mv
+            rskelf_mod.rskelf_sv = old_sv
 
     def test_degenerate_points_end_to_end(self):
         x = np.array([0.0, 0.0, 0.0, 0.4, 0.4, 0.8, 1.0, 1.0]).reshape(1, -1)

@@ -3,6 +3,7 @@ import unittest
 import numpy as np
 import scipy.sparse as sp
 
+import pyflam.mf as mf_mod
 from pyflam import (
     mf2,
     mf3,
@@ -89,6 +90,23 @@ class MultifontalTests(unittest.TestCase):
         np.testing.assert_allclose(mf_diag(F, True), np.diag(np.linalg.inv(A)))
         np.testing.assert_allclose(mf_spdiag(F), np.diag(A))
         np.testing.assert_allclose(mf_spdiag(F, True), np.diag(np.linalg.inv(A)))
+
+    def test_mf_diag_uses_selected_unfolding_for_hierarchical_factors(self):
+        A_sparse = _spd_tridiag(5)
+        A = A_sparse.toarray()
+        x = np.linspace(0.0, 1.0, A.shape[0]).reshape(1, -1)
+        F = mfx(A_sparse, x, occ=2)
+        old_sv = mf_mod.mf_sv
+
+        def blocked(*args, **kwargs):
+            raise AssertionError("identity RHS fallback was used")
+
+        try:
+            mf_mod.mf_sv = blocked
+            np.testing.assert_allclose(mf_mod.mf_diag(F), np.diag(A))
+            np.testing.assert_allclose(mf_mod.mf_diag(F, True), np.diag(np.linalg.inv(A)))
+        finally:
+            mf_mod.mf_sv = old_sv
 
     def test_mfx_complex_sparse_transpose_solves_and_logdet(self):
         A = np.diag(np.array([3.0 + 1.0j, 4.0 - 0.5j, 5.0 + 0.75j, 2.5 + 1.5j]))

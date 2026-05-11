@@ -10,7 +10,19 @@ import scipy.linalg as la
 import scipy.sparse as sp
 
 from ._matrix import apply_transpose, materialize, submatrix
-from .core import StructMixin, _as_points, _normalise_opts, chksymm, chktrans, detperm, hypoct, id, logdet_ldl
+from .core import (
+    StructMixin,
+    _as_points,
+    _normalise_opts,
+    chksymm,
+    chktrans,
+    detperm,
+    hypoct,
+    id,
+    logdet_ldl,
+    spsymm,
+    spsymm2,
+)
 
 
 @dataclass
@@ -364,10 +376,13 @@ def rskelf_cholsv(F: RSkelFFactor, X, trans: str = "n") -> np.ndarray:
 def rskelf_diag(F: RSkelFFactor, dinv: bool | int = False, opts: dict[str, Any] | None = None) -> np.ndarray:
     """Extract ``diag(F)`` or ``diag(inv(F))``.
 
-    This provides the FLAM public interface with dense exact semantics. Compact
-    selected-inversion can be layered underneath this API later.
+    Complete compact factors use FLAM's matrix-unfolding selected-inversion
+    algorithm. Partial factors and dense debug factors fall back to the exact
+    public semantics.
     """
 
+    if _has_complete_compact_factor(F):
+        return _rskelf_diag_unfold(F, dinv, external=False)
     if _has_compact_factor(F):
         eye = np.eye(F.N, dtype=_factor_dtype(F, np.array(0.0)))
         return np.diag(rskelf_sv(F, eye) if dinv else rskelf_mv(F, eye))
@@ -383,6 +398,242 @@ def rskelf_spdiag(F: RSkelFFactor, dinv: bool | int = False) -> np.ndarray:
     """Extract a diagonal using the sparse-apply style FLAM API."""
 
     return rskelf_diag(F, dinv)
+
+
+def _rskelf_diag_unfold(F: RSkelFFactor, dinv: bool | int = False, *, external: bool = False) -> np.ndarray:
+    N = F.N
+    dtype = _factor_dtype(F, np.array(0.0))
+    if N == 0:
+        return np.array([], dtype=dtype)
+
+    keep = _diag_keep_patterns(F, external)
+    M = sp.csc_matrix((N, N), dtype=dtype)
+    for lvl in range(F.nlvl - 1, -1, -1):
+        rows: list[np.ndarray] = []
+        cols: list[np.ndarray] = []
+        vals: list[np.ndarray] = []
+        coo = M.tocoo()
+        if coo.nnz:
+            rows.append(coo.row)
+            cols.append(coo.col)
+            vals.append(coo.data)
+
+        keep_lvl = keep[lvl].tocsc()
+        keep_trans = keep_lvl.T.tocsc() if external else None
+        for factor_idx in range(int(F.lvp[lvl]), int(F.lvp[lvl + 1])):
+            f = F.factors[factor_idx]
+            rd = np.asarray(f.rd, dtype=np.int64)
+            sk = np.asarray(f.sk, dtype=np.int64)
+            if external:
+                ex = _diag_external_indices(keep_lvl, keep_trans, rd, sk)
+                rse = np.concatenate((rd, sk, ex))
+                X = _diag_unfold_block(F, f, M, rd, sk, ex, bool(dinv))
+            else:
+                rse = np.concatenate((rd, sk))
+                X = _diag_unfold_block(F, f, M, rd, sk, None, bool(dinv))
+            if rse.size == 0:
+                continue
+            local_keep = np.asarray(keep_lvl[np.ix_(rse, rse)].toarray(), dtype=bool)
+            mask = local_keep & (X != 0)
+            if np.any(mask):
+                rr, cc = np.meshgrid(rse, rse, indexing="ij")
+                rows.append(rr[mask].astype(np.int64, copy=False))
+                cols.append(cc[mask].astype(np.int64, copy=False))
+                vals.append(X[mask])
+
+        if rows:
+            M = sp.csc_matrix((np.concatenate(vals), (np.concatenate(rows), np.concatenate(cols))), shape=(N, N))
+            M = M.multiply(keep_lvl)
+        else:
+            M = sp.csc_matrix((N, N), dtype=dtype)
+    return np.asarray(M.diagonal())
+
+
+def _diag_keep_patterns(F: RSkelFFactor, external: bool) -> list[sp.csc_matrix]:
+    N = F.N
+    keep: list[sp.csc_matrix] = [sp.eye(N, dtype=bool, format="csc")]
+    rem = np.ones(N, dtype=bool)
+    for lvl in range(F.nlvl - 1):
+        rows: list[np.ndarray] = []
+        cols: list[np.ndarray] = []
+        cur = keep[lvl].tocoo()
+        if cur.nnz:
+            idx = rem[cur.row] & rem[cur.col]
+            if np.any(idx):
+                rows.append(cur.row[idx])
+                cols.append(cur.col[idx])
+
+        for factor_idx in range(int(F.lvp[lvl]), int(F.lvp[lvl + 1])):
+            rd = np.asarray(F.factors[factor_idx].rd, dtype=np.int64)
+            if rd.size:
+                rem[rd] = False
+
+        keep_lvl = keep[lvl].tocsc()
+        keep_trans = keep_lvl.T.tocsc() if external else None
+        for factor_idx in range(int(F.lvp[lvl]), int(F.lvp[lvl + 1])):
+            f = F.factors[factor_idx]
+            sk = np.asarray(f.sk, dtype=np.int64)
+            if sk.size:
+                rr, cc = np.meshgrid(sk, sk, indexing="ij")
+                rows.append(rr.ravel())
+                cols.append(cc.ravel())
+            if external and lvl > 0 and sk.size:
+                rd = np.asarray(f.rd, dtype=np.int64)
+                ex = _diag_external_indices(keep_lvl, keep_trans, rd, sk, rem=rem)
+                if ex.size:
+                    rr, cc = np.meshgrid(ex, sk, indexing="ij")
+                    rows.append(np.concatenate((rr.ravel(), cc.ravel())))
+                    cols.append(np.concatenate((cc.ravel(), rr.ravel())))
+
+        if rows:
+            row = np.concatenate(rows).astype(np.int64, copy=False)
+            col = np.concatenate(cols).astype(np.int64, copy=False)
+            if F.symm != "n":
+                idx = row >= col
+                row = row[idx]
+                col = col[idx]
+            data = np.ones(row.size, dtype=bool)
+            keep.append(sp.csc_matrix((data, (row, col)), shape=(N, N), dtype=bool))
+        else:
+            keep.append(sp.csc_matrix((N, N), dtype=bool))
+    return keep
+
+
+def _diag_external_indices(
+    keep: sp.csc_matrix,
+    keep_trans: sp.csc_matrix | None,
+    rd: np.ndarray,
+    sk: np.ndarray,
+    rem: np.ndarray | None = None,
+) -> np.ndarray:
+    if sk.size == 0:
+        return np.array([], dtype=np.int64)
+    row_idx = keep[:, sk].tocoo().row
+    if keep_trans is not None:
+        row_idx = np.concatenate((row_idx, keep_trans[:, sk].tocoo().row))
+    if rem is not None and row_idx.size:
+        row_idx = row_idx[rem[row_idx]]
+    if row_idx.size == 0:
+        return np.array([], dtype=np.int64)
+    slf = np.sort(np.concatenate((rd, sk)))
+    return np.setdiff1d(np.unique(row_idx.astype(np.int64)), slf, assume_unique=False)
+
+
+def _diag_unfold_block(
+    F: RSkelFFactor,
+    f: RSkelFFactorBlock,
+    M: sp.csc_matrix,
+    rd: np.ndarray,
+    sk: np.ndarray,
+    ex: np.ndarray | None,
+    dinv: bool,
+) -> np.ndarray:
+    nrd = rd.size
+    nsk = sk.size
+    nex = 0 if ex is None else ex.size
+    dtype = _factor_dtype(F, np.array(0.0))
+    X = np.zeros((nrd + nsk + nex, nrd + nsk + nex), dtype=dtype)
+    ird = np.arange(nrd)
+    isk = nrd + np.arange(nsk)
+
+    if F.symm == "h":
+        X[np.ix_(ird, ird)] = la.inv(f.U) if dinv else f.U
+    else:
+        X[np.ix_(ird, ird)] = np.eye(nrd, dtype=dtype)
+
+    if ex is None:
+        Xsk = np.asarray(M[np.ix_(sk, sk)].toarray())
+        Xsk = spsymm(Xsk, F.symm)
+        X[np.ix_(isk, isk)] = Xsk
+    else:
+        iex = nrd + nsk + np.arange(nex)
+        se = np.concatenate((sk, ex))
+        Xse = np.asarray(M[np.ix_(se, se)].toarray())
+        Xse[:nsk, :nsk] = spsymm(Xse[:nsk, :nsk], F.symm)
+        ise = np.concatenate((isk, iex))
+        X[np.ix_(ise, ise)] = Xse
+        Aex, Bex = spsymm2(X[np.ix_(iex, isk)], X[np.ix_(isk, iex)], F.symm)
+        X[np.ix_(iex, isk)] = Aex
+        X[np.ix_(isk, iex)] = Bex
+
+    T = f.T
+    L = f.L
+    p = f.p
+    E = f.E
+    if F.symm in ("n", "s"):
+        U = f.U
+        G = f.F
+    else:
+        U = f.L.conj().T
+        G = f.E.conj().T
+
+    if dinv:
+        X[:, ird] = _right_solve_triangular(X[:, ird] - X[:, isk] @ E, L, lower=True, unit_diagonal=(F.symm != "p"))
+        rhs = X[ird, :] - G @ X[isk, :]
+        if F.symm == "h":
+            X[ird, :] = la.solve(U, rhs, check_finite=False)
+        else:
+            X[ird, :] = _triangular_solve_allow_singular(U, rhs, lower=False)
+        if p is not None:
+            tmp = X[:, ird].copy()
+            X[:, ird[p]] = tmp
+            if F.symm == "h":
+                tmp = X[ird, :].copy()
+                X[ird[p], :] = tmp
+        if F.symm == "s":
+            X[:, isk] = X[:, isk] - X[:, ird] @ T.T
+        else:
+            X[:, isk] = X[:, isk] - X[:, ird] @ T.conj().T
+        X[isk, :] = X[isk, :] - T @ X[ird, :]
+    else:
+        X[:, isk] = X[:, isk] + X[:, ird] @ G
+        X[isk, :] = X[isk, :] + E @ X[ird, :]
+        X[:, ird] = X[:, ird] @ U
+        X[ird, :] = L @ X[ird, :]
+        if p is not None:
+            tmp = X[:, ird].copy()
+            if F.symm == "h":
+                X[:, ird[p]] = tmp
+            tmp = X[ird, :].copy()
+            X[ird[p], :] = tmp
+        X[:, ird] = X[:, ird] + X[:, isk] @ T
+        if F.symm == "s":
+            X[ird, :] = X[ird, :] + T.T @ X[isk, :]
+        else:
+            X[ird, :] = X[ird, :] + T.conj().T @ X[isk, :]
+
+    if ex is None:
+        X[np.ix_(isk, isk)] = X[np.ix_(isk, isk)] - Xsk
+    else:
+        X[np.ix_(ise, ise)] = X[np.ix_(ise, ise)] - Xse
+    return X
+
+
+def _right_solve_triangular(B: np.ndarray, A: np.ndarray, *, lower: bool, unit_diagonal: bool = False) -> np.ndarray:
+    return la.solve_triangular(
+        A.T,
+        B.T,
+        lower=not lower,
+        unit_diagonal=unit_diagonal,
+        check_finite=False,
+    ).T
+
+
+def _triangular_solve_allow_singular(A: np.ndarray, B: np.ndarray, *, lower: bool) -> np.ndarray:
+    X = np.array(B, dtype=np.result_type(A, B, 1.0), copy=True)
+    n = A.shape[0]
+    with np.errstate(divide="ignore", invalid="ignore", over="ignore"):
+        if lower:
+            for i in range(n):
+                if i:
+                    X[i, :] = X[i, :] - A[i, :i] @ X[:i, :]
+                X[i, :] = X[i, :] / A[i, i]
+        else:
+            for i in range(n - 1, -1, -1):
+                if i + 1 < n:
+                    X[i, :] = X[i, :] - A[i, i + 1 :] @ X[i + 1 :, :]
+                X[i, :] = X[i, :] / A[i, i]
+    return X
 
 
 def _require_positive_definite(F: RSkelFFactor, caller: str) -> None:

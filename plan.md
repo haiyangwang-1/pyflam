@@ -176,14 +176,14 @@ bug instead of silently skipping.
 ## 10. Implement Fast Selected Inversion
 
 - [ ] Port `rskelf/spdiag/*` selected-inversion algorithms.
-- [ ] Replace correctness-first `rskelf_diag` identity-RHS extraction with the
+- [x] Replace correctness-first `rskelf_diag` identity-RHS extraction with the
       selected-inversion implementation.
 - [ ] Port `mf/spdiag/*` selected-inversion algorithms.
-- [ ] Replace correctness-first `mf_diag` identity-RHS extraction.
+- [x] Replace correctness-first `mf_diag` identity-RHS extraction.
 - [ ] Port `hifie/spdiag/*` selected-inversion algorithms.
-- [ ] Replace correctness-first `hifie_diag`.
+- [x] Replace correctness-first `hifie_diag`.
 - [ ] Port `hifde/spdiag/*` selected-inversion algorithms.
-- [ ] Replace correctness-first `hifde_diag`.
+- [x] Replace correctness-first `hifde_diag`.
 - [ ] Add MATLAB parity for diagonal and inverse diagonal extraction across
       unsymmetric, symmetric, Hermitian, and positive-definite modes.
 - [ ] Add memory/performance tests showing diagonal extraction no longer scales

@@ -18,7 +18,7 @@ import scipy.sparse as sp
 import scipy.sparse.linalg as spla
 
 from ._matrix import apply_transpose, materialize
-from .core import StructMixin, _as_points, _normalise_opts, chksymm, chktrans, detperm, hypoct, logdet_ldl
+from .core import StructMixin, _as_points, _normalise_opts, chksymm, chktrans, detperm, hypoct, logdet_ldl, spsymm
 
 
 @dataclass
@@ -214,6 +214,8 @@ def mf_cholsv(F: MFFactor, X, trans: str = "n") -> np.ndarray:
 def mf_diag(F: MFFactor, dinv: bool | int = False, opts: dict[str, Any] | None = None) -> np.ndarray:
     """Extract ``diag(A)`` or ``diag(inv(A))`` from an MF factor."""
 
+    if F.hierarchical:
+        return _mf_diag_unfold(F, bool(dinv))
     if F.A_sparse is not None:
         if dinv:
             return np.diag(mf_sv(F, np.eye(F.N, dtype=F.A_sparse.dtype)))
@@ -229,6 +231,153 @@ def mf_spdiag(F: MFFactor, dinv: bool | int = False) -> np.ndarray:
     """Sparse-style diagonal extraction wrapper."""
 
     return mf_diag(F, dinv)
+
+
+def _mf_diag_unfold(F: MFFactor, dinv: bool) -> np.ndarray:
+    N = F.N
+    dtype = _factor_dtype(F)
+    if N == 0:
+        return np.array([], dtype=dtype)
+
+    keep = _mf_diag_keep_patterns(F)
+    M = sp.csc_matrix((N, N), dtype=dtype)
+    for lvl in range(F.nlvl - 1, -1, -1):
+        rows: list[np.ndarray] = []
+        cols: list[np.ndarray] = []
+        vals: list[np.ndarray] = []
+        coo = M.tocoo()
+        if coo.nnz:
+            rows.append(coo.row)
+            cols.append(coo.col)
+            vals.append(coo.data)
+
+        keep_lvl = keep[lvl].tocsc()
+        for factor_idx in range(int(F.lvp[lvl]), int(F.lvp[lvl + 1])):
+            f = F.factors[factor_idx]
+            rd = np.asarray(f.rd, dtype=np.int64)
+            sk = np.asarray(f.sk, dtype=np.int64)
+            rse = np.concatenate((rd, sk))
+            if rse.size == 0:
+                continue
+            X = _mf_diag_unfold_block(F, f, M, rd, sk, dinv)
+            local_keep = np.asarray(keep_lvl[np.ix_(rse, rse)].toarray(), dtype=bool)
+            mask = local_keep & (X != 0)
+            if np.any(mask):
+                rr, cc = np.meshgrid(rse, rse, indexing="ij")
+                rows.append(rr[mask].astype(np.int64, copy=False))
+                cols.append(cc[mask].astype(np.int64, copy=False))
+                vals.append(X[mask])
+
+        if rows:
+            M = sp.csc_matrix((np.concatenate(vals), (np.concatenate(rows), np.concatenate(cols))), shape=(N, N))
+            M = M.multiply(keep_lvl)
+        else:
+            M = sp.csc_matrix((N, N), dtype=dtype)
+    return np.asarray(M.diagonal())
+
+
+def _mf_diag_keep_patterns(F: MFFactor) -> list[sp.csc_matrix]:
+    N = F.N
+    keep: list[sp.csc_matrix] = [sp.eye(N, dtype=bool, format="csc")]
+    rem = np.ones(N, dtype=bool)
+    for lvl in range(F.nlvl - 1):
+        rows: list[np.ndarray] = []
+        cols: list[np.ndarray] = []
+        cur = keep[lvl].tocoo()
+        if cur.nnz:
+            idx = rem[cur.row] & rem[cur.col]
+            if np.any(idx):
+                rows.append(cur.row[idx])
+                cols.append(cur.col[idx])
+
+        for factor_idx in range(int(F.lvp[lvl]), int(F.lvp[lvl + 1])):
+            rd = np.asarray(F.factors[factor_idx].rd, dtype=np.int64)
+            if rd.size:
+                rem[rd] = False
+
+        for factor_idx in range(int(F.lvp[lvl]), int(F.lvp[lvl + 1])):
+            sk = np.asarray(F.factors[factor_idx].sk, dtype=np.int64)
+            if sk.size:
+                rr, cc = np.meshgrid(sk, sk, indexing="ij")
+                rows.append(rr.ravel())
+                cols.append(cc.ravel())
+
+        if rows:
+            row = np.concatenate(rows).astype(np.int64, copy=False)
+            col = np.concatenate(cols).astype(np.int64, copy=False)
+            if F.symm != "n":
+                idx = row >= col
+                row = row[idx]
+                col = col[idx]
+            data = np.ones(row.size, dtype=bool)
+            keep.append(sp.csc_matrix((data, (row, col)), shape=(N, N), dtype=bool))
+        else:
+            keep.append(sp.csc_matrix((N, N), dtype=bool))
+    return keep
+
+
+def _mf_diag_unfold_block(F: MFFactor, f: MFFactorBlock, M: sp.csc_matrix, rd: np.ndarray, sk: np.ndarray, dinv: bool):
+    nrd = rd.size
+    nsk = sk.size
+    dtype = _factor_dtype(F)
+    X = np.zeros((nrd + nsk, nrd + nsk), dtype=dtype)
+    ird = np.arange(nrd)
+    isk = nrd + np.arange(nsk)
+
+    if F.symm == "h":
+        X[np.ix_(ird, ird)] = la.inv(f.U) if dinv else f.U
+    else:
+        X[np.ix_(ird, ird)] = np.eye(nrd, dtype=dtype)
+    Xsk = spsymm(np.asarray(M[np.ix_(sk, sk)].toarray()), F.symm)
+    X[np.ix_(isk, isk)] = Xsk
+
+    L = f.L
+    p = f.p
+    E = f.E
+    if F.symm == "n":
+        U = f.U
+        G = f.F
+    else:
+        U = f.L.conj().T
+        G = f.E.conj().T
+
+    if dinv:
+        X[:, ird] = _mf_right_solve_triangular(X[:, ird] - X[:, isk] @ E, L, lower=True, unit_diagonal=(F.symm != "p"))
+        rhs = X[ird, :] - G @ X[isk, :]
+        if F.symm == "h":
+            X[ird, :] = la.solve(U, rhs, check_finite=False)
+        else:
+            X[ird, :] = _triangular_solve(U, rhs, lower=False)
+        if p is not None:
+            tmp = X[:, ird].copy()
+            X[:, ird[p]] = tmp
+            if F.symm == "h":
+                tmp = X[ird, :].copy()
+                X[ird[p], :] = tmp
+    else:
+        X[:, isk] = X[:, isk] + X[:, ird] @ G
+        X[isk, :] = X[isk, :] + E @ X[ird, :]
+        X[:, ird] = X[:, ird] @ U
+        X[ird, :] = L @ X[ird, :]
+        if p is not None:
+            tmp = X[:, ird].copy()
+            if F.symm == "h":
+                X[:, ird[p]] = tmp
+            tmp = X[ird, :].copy()
+            X[ird[p], :] = tmp
+
+    X[np.ix_(isk, isk)] = X[np.ix_(isk, isk)] - Xsk
+    return X
+
+
+def _mf_right_solve_triangular(B: np.ndarray, A: np.ndarray, *, lower: bool, unit_diagonal: bool = False) -> np.ndarray:
+    return la.solve_triangular(
+        A.T,
+        B.T,
+        lower=not lower,
+        unit_diagonal=unit_diagonal,
+        check_finite=False,
+    ).T
 
 
 def _copy_for_factor(F: MFFactor, X: np.ndarray) -> np.ndarray:

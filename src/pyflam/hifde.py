@@ -23,6 +23,7 @@ from .mf import (
 from .rskelf import (
     RSkelFFactor,
     RSkelFFactorBlock,
+    _rskelf_diag_unfold,
     rskelf_cholmv,
     rskelf_cholsv,
     rskelf_diag,
@@ -126,6 +127,8 @@ def hifde_cholsv(F: HIFDEFactor, X, trans: str = "n"):
 
 
 def hifde_diag(F: HIFDEFactor, dinv: bool | int = False, opts: dict[str, Any] | None = None):
+    if F.backend.Si is not None and F.backend.Si.size == 0:
+        return _rskelf_diag_unfold(F.backend, dinv, external=True)
     return rskelf_diag(F.backend, dinv, opts)
 
 

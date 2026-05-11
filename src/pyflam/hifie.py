@@ -20,6 +20,7 @@ from .core import StructMixin, _as_points, _normalise_opts, chksymm, hypoct, id,
 from .rskelf import (
     RSkelFFactor,
     RSkelFFactorBlock,
+    _rskelf_diag_unfold,
     rskelf,
     rskelf_cholmv,
     rskelf_cholsv,
@@ -170,6 +171,8 @@ def hifie_cholsv(F: HIFIEFactor, X, trans: str = "n"):
 
 
 def hifie_diag(F: HIFIEFactor, dinv: bool | int = False, opts: dict[str, Any] | None = None):
+    if F.backend.Si is not None and F.backend.Si.size == 0:
+        return _rskelf_diag_unfold(F.backend, dinv, external=True)
     return rskelf_diag(F.backend, dinv, opts)
 
 
