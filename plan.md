@@ -91,7 +91,7 @@ bug instead of silently skipping.
 - [x] Add proxy-callback parity for row and column proxy paths.
 - [x] Add full `rskel_xsp` parity for symmetric/Hermitian/positive cases.
 - [x] Verify `rskel_mv` for `trans='n'`, `'t'`, and `'c'`.
-- [ ] Ensure callback-based factors avoid eager dense materialization.
+- [x] Ensure callback-based factors avoid eager dense materialization.
 - [ ] Cover representative upstream tests under `FLAM/rskel/test`.
 
 ## 5. Finish `ifmm` Fidelity
