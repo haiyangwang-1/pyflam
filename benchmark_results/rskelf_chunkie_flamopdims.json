@@ -1,0 +1,32 @@
+{
+  "case": "flamopdims",
+  "n": 1960,
+  "occ": 128,
+  "tol": 1e-10,
+  "errors": {
+    "mv_vs_matlab": 4.971652623135878e-15,
+    "sv_vs_matlab": 6.471106801249497e-14,
+    "mv_vs_dense": 2.886835544259756e-11,
+    "sv_residual": 5.202630618823608e-09,
+    "matlab_sv_residual": 5.202624022788515e-09,
+    "logdet_abs": 4.263256414560601e-14,
+    "logdet_mod_2pi_i_abs": 4.263256414560601e-14,
+    "det_from_logdet_rel": 4.263256414560601e-14
+  },
+  "timings_seconds": {
+    "chunkie_dense_assemble": 5.8390969,
+    "matlab_build": 1.9715702,
+    "matlab_mv": 0.0366354,
+    "matlab_sv": 0.0291236,
+    "matlab_logdet": 0.0123728,
+    "python_build": 3.3953026999997746,
+    "python_mv": 0.008219899999858171,
+    "python_sv": 0.01610309999978199,
+    "python_logdet": 0.0012439999991329387
+  },
+  "python_factor": {
+    "nlvl": 4,
+    "nfactors": 33,
+    "remaining_skeletons": 0
+  }
+}
