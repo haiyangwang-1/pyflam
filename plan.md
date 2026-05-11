@@ -114,7 +114,7 @@ bug instead of silently skipping.
 - [x] Add rank-cap versus tolerance-mode tests for `id`.
 - [x] Add `id` tests with fixed columns, complex inputs, empty matrices, and
       rank-deficient matrices.
-- [ ] Add nontrivial callable `stop` tests for partial `rskelf`.
+- [x] Add nontrivial callable `stop` tests for partial `rskelf`.
 - [x] Cover complex sparse LU logdet and transpose/adjoint solves in `mf`.
 - [ ] Add sparse singular/near-singular failure-mode tests where MATLAB FLAM has
       defined behavior.
