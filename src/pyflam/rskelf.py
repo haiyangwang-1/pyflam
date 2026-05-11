@@ -7,6 +7,7 @@ from typing import Any
 
 import numpy as np
 import scipy.linalg as la
+import scipy.sparse as sp
 
 from ._matrix import apply_transpose, materialize, submatrix
 from .core import StructMixin, _as_points, _normalise_opts, chksymm, chktrans, detperm, hypoct, id, logdet_ldl
@@ -38,7 +39,7 @@ class RSkelFFactor(StructMixin):
     tree: Any = None
     opts: dict[str, Any] = field(default_factory=dict)
     Si: np.ndarray | None = None
-    S: np.ndarray | None = None
+    S: Any = None
 
 
 def _stop_fun(stop):
@@ -240,7 +241,7 @@ def rskelf(A, x, occ, rank_or_tol, pxyfun=None, opts=None) -> RSkelFFactor:
         tree=tree,
         opts=o,
         Si=remaining,
-        S=S,
+        S=sp.csr_matrix(S),
     )
 
 
@@ -688,8 +689,8 @@ def _rskelf_cholsv_p(F: RSkelFFactor, X: np.ndarray, trans: str) -> np.ndarray:
 
 def rskelf_partial_info(F: RSkelFFactor):
     if F.Si is None:
-        return np.array([], dtype=np.int64), np.zeros((0, 0))
-    return F.Si.copy(), np.array(F.S, copy=True)
+        return np.array([], dtype=np.int64), sp.csr_matrix((0, 0))
+    return F.Si.copy(), F.S.copy() if sp.issparse(F.S) else np.array(F.S, copy=True)
 
 
 def rskelf_partial_mv(F: RSkelFFactor, X, mvfun=None, trans: str = "n") -> np.ndarray:
@@ -747,7 +748,8 @@ def _default_partial_matrix(F: RSkelFFactor) -> np.ndarray:
         A_skel = submatrix(F.A, F.Si, F.Si)
     else:
         raise ValueError("partial factor does not contain skeleton matrix data")
-    return A_skel + F.S
+    S = F.S.toarray() if sp.issparse(F.S) else F.S
+    return A_skel + S
 
 
 def _default_partial_mvfun(F: RSkelFFactor):

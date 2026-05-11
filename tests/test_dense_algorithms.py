@@ -1,6 +1,7 @@
 import unittest
 
 import numpy as np
+import scipy.sparse as sp
 
 from pyflam import (
     ifmm,
@@ -218,7 +219,8 @@ class DenseAlgorithmTests(unittest.TestCase):
         X = np.random.default_rng(6).standard_normal((20, 3))
         F = rskelf(A, x, occ=2, rank_or_tol=1e-10, opts={"stop": 4})
         sk, S = rskelf_partial_info(F)
-        Ask = A[np.ix_(sk, sk)] + S
+        self.assertTrue(sp.issparse(S))
+        Ask = A[np.ix_(sk, sk)] + S.toarray()
 
         def mvfun(Y, trans="n"):
             return Ask @ Y if trans == "n" else Ask.conj().T @ Y
