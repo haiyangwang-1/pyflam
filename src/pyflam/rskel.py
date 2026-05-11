@@ -318,16 +318,134 @@ def _rskel_mv_n(F: RSkelFactor, X: np.ndarray, trans: str) -> np.ndarray:
 
 
 def rskel_xsp(F: RSkelFactor):
-    """Embed compressed matrix into an extended sparse form.
+    """Return FLAM's extended sparse embedding of an ``rskel`` factor."""
 
-    In this exact-storage implementation the extended sparse matrix is simply
-    the sparse representation of the retained matrix, with identity row/column
-    maps matching the base problem.
-    """
+    nlvl = F.nlvl
+    p = F.P
+    q = F.Q if F.symm == "n" else F.P
+    P = np.zeros((F.M, 2), dtype=np.int64)
+    Q = np.zeros((F.N, 2), dtype=np.int64)
+    P[p, 0] = np.arange(F.M, dtype=np.int64)
+    Q[q, 0] = np.arange(F.N, dtype=np.int64)
 
-    if F.A_dense is None:
-        raise ValueError("factor does not contain matrix data")
-    return sp.csr_matrix(F.A_dense), np.arange(F.M, dtype=np.int64), np.arange(F.N, dtype=np.int64)
+    rows: list[np.ndarray] = []
+    cols: list[np.ndarray] = []
+    vals: list[np.ndarray] = []
+    rrem = np.ones(F.M, dtype=bool)
+    crem = np.ones(F.N, dtype=bool)
+    pf = 0
+    M = 0
+    N = 0
+
+    for lvl in range(nlvl):
+        rn = int(np.count_nonzero(rrem))
+        cn = int(np.count_nonzero(crem))
+        for f in F.U[F.lvpu[lvl] : F.lvpu[lvl + 1]]:
+            rrem[f.rrd] = False
+            if F.symm == "n":
+                crem[f.crd] = False
+            else:
+                crem[f.rrd] = False
+
+        rk = int(np.count_nonzero(rrem))
+        ck = int(np.count_nonzero(crem))
+        p1 = pf
+        p2 = 1 - pf
+        pf = p2
+        P[p[rrem[p]], p2] = np.arange(rk, dtype=np.int64)
+        Q[q[crem[q]], p2] = np.arange(ck, dtype=np.int64)
+
+        for f in F.D[F.lvpd[lvl] : F.lvpd[lvl + 1]]:
+            rr, cc = np.meshgrid(f.i, f.j, indexing="ij")
+            _push_sparse_block(rows, cols, vals, M + P[rr.ravel(), p1], N + Q[cc.ravel(), p1], f.D.ravel())
+
+        if lvl == nlvl - 1:
+            M += rn
+            N += cn
+            break
+
+        if F.symm == "n":
+            idx = np.flatnonzero(rrem)
+            _push_sparse_block(rows, cols, vals, M + P[idx, p1], N + cn + P[idx, p2], np.ones(rk))
+        idx = np.flatnonzero(crem)
+        _push_sparse_block(rows, cols, vals, M + rn + Q[idx, p2], N + Q[idx, p1], np.ones(ck))
+
+        for f in F.U[F.lvpu[lvl] : F.lvpu[lvl + 1]]:
+            rrd = f.rrd
+            rsk = f.rsk
+            rT = f.rT.conj().T
+            if F.symm == "n":
+                crd = f.crd
+                csk = f.csk
+                cT = f.cT
+            elif F.symm == "s":
+                crd = f.rrd
+                csk = f.rsk
+                cT = rT.T
+            else:
+                crd = f.rrd
+                csk = f.rsk
+                cT = rT.conj().T
+
+            if F.symm == "n":
+                rr, cc = np.meshgrid(rrd, rsk, indexing="ij")
+                _push_sparse_block(
+                    rows,
+                    cols,
+                    vals,
+                    M + P[rr.ravel(), p1],
+                    N + cn + P[cc.ravel(), p2],
+                    rT.ravel(),
+                )
+
+            rr, cc = np.meshgrid(csk, crd, indexing="ij")
+            _push_sparse_block(
+                rows,
+                cols,
+                vals,
+                M + rn + Q[rr.ravel(), p2],
+                N + Q[cc.ravel(), p1],
+                cT.ravel(),
+            )
+
+        M += rn
+        N += cn
+        if F.symm == "n":
+            _push_sparse_block(rows, cols, vals, M + np.arange(ck), N + rk + np.arange(ck), -np.ones(ck))
+        _push_sparse_block(rows, cols, vals, M + ck + np.arange(rk), N + np.arange(rk), -np.ones(rk))
+
+        M += ck
+        N += rk
+
+    if rows:
+        I = np.concatenate(rows)
+        J = np.concatenate(cols)
+        V = np.concatenate(vals)
+    else:
+        I = np.array([], dtype=np.int64)
+        J = np.array([], dtype=np.int64)
+        V = np.array([], dtype=float)
+    if F.symm != "n":
+        mask = I >= J
+        I = I[mask]
+        J = J[mask]
+        V = V[mask]
+    return sp.csr_matrix((V, (I, J)), shape=(M, N)), p.copy(), q.copy()
+
+
+def _push_sparse_block(
+    rows: list[np.ndarray],
+    cols: list[np.ndarray],
+    vals: list[np.ndarray],
+    i: np.ndarray,
+    j: np.ndarray,
+    v: np.ndarray,
+) -> None:
+    if i.size == 0:
+        return
+    rows.append(np.asarray(i, dtype=np.int64).reshape(-1))
+    cols.append(np.asarray(j, dtype=np.int64).reshape(-1))
+    vals.append(np.asarray(v).reshape(-1))
 
 
 __all__ = ["RSkelDBlock", "RSkelFactor", "RSkelUBlock", "rskel", "rskel_mv", "rskel_xsp"]
