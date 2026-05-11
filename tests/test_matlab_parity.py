@@ -11,6 +11,8 @@ import scipy.io
 from pyflam import (
     hypoct,
     hypoct_perm,
+    hifie_id,
+    hifie_idx,
     id,
     ifmm,
     ifmm_mv,
@@ -117,6 +119,50 @@ class MatlabParityTests(unittest.TestCase):
         np.testing.assert_array_equal(rd, data["rd"].ravel().astype(np.int64) - 1)
         np.testing.assert_allclose(T, data["T"], rtol=1e-12, atol=1e-12)
         self.assertEqual(niter, int(data["niter"].ravel()[0]))
+
+    def test_hifie_compression_callbacks(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "hifie_callbacks.mat"
+            script = Path(tmp) / "run_hifie_callbacks.m"
+            script.write_text(
+                textwrap.dedent(
+                    f"""
+                    addpath(genpath('{str(FLAM_REF).replace("'", "''")}'));
+                    K = [1 2 1 0 3 1;
+                         0 1 2 1 1 0;
+                         2 0 1 3 0 1;
+                         1 1 0 2 2 1] / 11;
+                    K1 = K + 0.1*eye(4,6);
+                    K2 = [1 0 1 0 0 0;
+                          0 1 0 1 0 0;
+                          1 0 1 0 0 0;
+                          0 1 0 1 0 0];
+                    [sk1,rd1,T1] = hifie_id(K,K1,K2,3,2,Inf);
+                    [sk2,rd2,T2] = hifie_idx(K,K1,K2,3,2,Inf);
+                    save('{str(out).replace("'", "''")}','K','K1','K2','sk1','rd1','T1','sk2','rd2','T2');
+                    exit;
+                    """
+                )
+            )
+            subprocess.run(
+                [str(MATLAB), "-batch", f"run('{script.as_posix()}')"],
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                timeout=120,
+            )
+            data = scipy.io.loadmat(out)
+
+        sk, rd, T = hifie_id(data["K"], data["K1"], data["K2"], 3, 2, np.inf)
+        np.testing.assert_array_equal(sk, data["sk1"].ravel().astype(np.int64) - 1)
+        np.testing.assert_array_equal(rd, data["rd1"].ravel().astype(np.int64) - 1)
+        np.testing.assert_allclose(T, data["T1"], rtol=1e-12, atol=1e-12)
+
+        sk, rd, T = hifie_idx(data["K"], data["K1"], data["K2"], 3, 2, np.inf)
+        np.testing.assert_array_equal(sk, data["sk2"].ravel().astype(np.int64) - 1)
+        np.testing.assert_array_equal(rd, data["rd2"].ravel().astype(np.int64) - 1)
+        np.testing.assert_allclose(T, data["T2"], rtol=1e-12, atol=1e-12)
 
     def test_rskelf_small_apply_and_solve(self):
         with tempfile.TemporaryDirectory() as tmp:
