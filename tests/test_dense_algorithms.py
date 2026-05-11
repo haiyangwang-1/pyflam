@@ -55,6 +55,41 @@ class DenseAlgorithmTests(unittest.TestCase):
         np.testing.assert_allclose(ifmm_mv(F, self.X), self.A @ self.X)
         np.testing.assert_allclose(ifmm_mv(F, self.X, trans="t"), self.A.T @ self.X)
 
+    def test_ifmm_mv_generates_missing_interactions_from_A(self):
+        F = ifmm(self.Afun, self.x, self.x, occ=3, rank_or_tol=1e-10, opts={"store": "n", "near": 0})
+
+        np.testing.assert_allclose(ifmm_mv(F, self.X, self.Afun), self.A @ self.X)
+        with self.assertRaises(ValueError):
+            ifmm_mv(F, self.X)
+
+    def test_ifmm_mv_rectangular_adjoint(self):
+        rx = np.linspace(0.0, 1.0, 7).reshape(1, -1)
+        cx = np.linspace(0.05, 0.95, 5).reshape(1, -1)
+        A = kernel_matrix(rx.ravel(), cx.ravel())
+        X = np.arange(10.0).reshape(5, 2) / 11.0
+        Y = np.arange(14.0).reshape(7, 2) / 15.0
+
+        def Afun(i, j):
+            return A[np.ix_(i, j)]
+
+        F = ifmm(Afun, rx, cx, occ=3, rank_or_tol=1e-10, opts={"store": "a", "near": 1})
+
+        np.testing.assert_allclose(ifmm_mv(F, X), A @ X)
+        np.testing.assert_allclose(ifmm_mv(F, Y, trans="c"), A.conj().T @ Y)
+
+    def test_ifmm_mv_promotes_complex_stored_blocks(self):
+        A = self.A.astype(complex)
+        A[0, 1] += 0.25j
+        A[3, 2] -= 0.5j
+
+        def Afun(i, j):
+            return A[np.ix_(i, j)]
+
+        F = ifmm(Afun, self.x, self.x, occ=3, rank_or_tol=1e-10, opts={"store": "a", "near": 1})
+
+        np.testing.assert_allclose(ifmm_mv(F, self.X), A @ self.X)
+        np.testing.assert_allclose(ifmm_mv(F, self.X, trans="c"), A.conj().T @ self.X)
+
     def test_rskelf_mv_sv_logdet_match_dense(self):
         F = rskelf(self.Afun, self.x, occ=3, rank_or_tol=1e-10)
         self.assertGreater(len(F.factors), 0)
