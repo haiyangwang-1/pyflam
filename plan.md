@@ -97,7 +97,7 @@ bug instead of silently skipping.
 ## 5. Finish `ifmm` Fidelity
 
 - [x] Add MATLAB parity for every `store` mode: `'n'`, `'s'`, `'r'`, and `'a'`.
-- [ ] Add MATLAB parity for `near=0` and `near=1`.
+- [x] Add MATLAB parity for `near=0` and `near=1`.
 - [ ] Add MATLAB parity for `symm='n'`, `'s'`, `'h'`, and `'p'` where supported.
 - [ ] Add proxy callback parity.
 - [ ] Add rectangular complex matrix parity.
