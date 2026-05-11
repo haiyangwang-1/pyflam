@@ -8,7 +8,7 @@ bug instead of silently skipping.
 
 ## Execution Rules
 
-- [ ] Before editing, check `git status --short` and do not overwrite unrelated
+- [x] Before editing, check `git status --short` and do not overwrite unrelated
       user changes.
 - [ ] Prefer small, verifiable commits that each move one checklist section
       forward.
@@ -149,7 +149,7 @@ bug instead of silently skipping.
 - [x] Implement true `hifie3x`.
 - [x] Port `hifie_mv`, `hifie_sv`, `hifie_logdet`, `hifie_cholmv`, and
       `hifie_cholsv`.
-- [ ] Port `hifie_diag` and `hifie_spdiag` selected-inversion paths.
+- [x] Port `hifie_diag` and `hifie_spdiag` selected-inversion paths.
 - [x] Add MATLAB parity from representative upstream tests under
       `FLAM/hifie/test`.
 - [x] Ensure public behavior remains compatible with current wrappers while
@@ -167,7 +167,7 @@ bug instead of silently skipping.
 - [x] Implement true `hifde3x`.
 - [x] Port `hifde_mv`, `hifde_sv`, `hifde_logdet`, `hifde_cholmv`, and
       `hifde_cholsv`.
-- [ ] Port `hifde_diag` and `hifde_spdiag` selected-inversion paths.
+- [x] Port `hifde_diag` and `hifde_spdiag` selected-inversion paths.
 - [x] Add MATLAB parity from representative upstream tests under
       `FLAM/hifde/test`.
 - [x] Ensure public behavior remains compatible with current wrappers while
@@ -186,7 +186,7 @@ bug instead of silently skipping.
 - [x] Replace correctness-first `hifde_diag`.
 - [x] Add MATLAB parity for diagonal and inverse diagonal extraction across
       unsymmetric, symmetric, Hermitian, and positive-definite modes.
-- [ ] Add memory/performance tests showing diagonal extraction no longer scales
+- [x] Add memory/performance tests showing diagonal extraction no longer scales
       like solving against a full identity matrix.
 
 ## 11. Performance Optimization

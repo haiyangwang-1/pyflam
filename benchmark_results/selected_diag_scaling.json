@@ -1,0 +1,820 @@
+{
+  "results": [
+    {
+      "family": "rskelf",
+      "mode": "diag",
+      "size_label": "n",
+      "size_value": 64,
+      "n": 64,
+      "nfactors": 17,
+      "nlvl": 4,
+      "factor_seconds": 0.012171299997135065,
+      "identity_rhs_bytes": 32768,
+      "largest_factor_block_bytes": 512,
+      "selected_peak_tracemalloc_bytes": 47529,
+      "identity_peak_tracemalloc_bytes": 75472,
+      "selected_seconds": {
+        "mean": 0.010785166664087834,
+        "std": 0.0017151219745074556,
+        "samples": [
+          0.009180499997455627,
+          0.012592700004461221,
+          0.010582299990346655
+        ]
+      },
+      "identity_rhs_seconds": {
+        "mean": 0.0006351666670525447,
+        "std": 1.8443793709595972e-05,
+        "samples": [
+          0.0006505000055767596,
+          0.0006403000006685033,
+          0.000614699994912371
+        ]
+      },
+      "speedup_identity_over_selected": 0.05889261490668531,
+      "relative_error_vs_identity_rhs": 1.4622500761488295e-16
+    },
+    {
+      "family": "rskelf",
+      "mode": "invdiag",
+      "size_label": "n",
+      "size_value": 64,
+      "n": 64,
+      "nfactors": 17,
+      "nlvl": 4,
+      "factor_seconds": 0.012171299997135065,
+      "identity_rhs_bytes": 32768,
+      "largest_factor_block_bytes": 512,
+      "selected_peak_tracemalloc_bytes": 51997,
+      "identity_peak_tracemalloc_bytes": 82984,
+      "selected_seconds": {
+        "mean": 0.015846300006766494,
+        "std": 0.0017998633516933759,
+        "samples": [
+          0.015285500005120412,
+          0.014393600009498186,
+          0.01785980000568088
+        ]
+      },
+      "identity_rhs_seconds": {
+        "mean": 0.007482666662932995,
+        "std": 0.0009194870847444649,
+        "samples": [
+          0.00845100000151433,
+          0.007375599991064519,
+          0.006621399996220134
+        ]
+      },
+      "speedup_identity_over_selected": 0.4722027640356321,
+      "relative_error_vs_identity_rhs": 1.5703596815093183e-16
+    },
+    {
+      "family": "hifie",
+      "mode": "diag",
+      "size_label": "n",
+      "size_value": 64,
+      "n": 64,
+      "nfactors": 19,
+      "nlvl": 7,
+      "factor_seconds": 0.03262189999804832,
+      "identity_rhs_bytes": 32768,
+      "largest_factor_block_bytes": 512,
+      "selected_peak_tracemalloc_bytes": 75020,
+      "identity_peak_tracemalloc_bytes": 75472,
+      "selected_seconds": {
+        "mean": 0.0207088999983777,
+        "std": 0.0011268281260241259,
+        "samples": [
+          0.021854199992958456,
+          0.019601499996497296,
+          0.020671000005677342
+        ]
+      },
+      "identity_rhs_seconds": {
+        "mean": 0.0006979666698801642,
+        "std": 1.8993248752581778e-05,
+        "samples": [
+          0.0007122000097297132,
+          0.0007053000008454546,
+          0.0006763999990653247
+        ]
+      },
+      "speedup_identity_over_selected": 0.0337037056499786,
+      "relative_error_vs_identity_rhs": 1.2488435482582417e-16
+    },
+    {
+      "family": "hifie",
+      "mode": "invdiag",
+      "size_label": "n",
+      "size_value": 64,
+      "n": 64,
+      "nfactors": 19,
+      "nlvl": 7,
+      "factor_seconds": 0.03262189999804832,
+      "identity_rhs_bytes": 32768,
+      "largest_factor_block_bytes": 512,
+      "selected_peak_tracemalloc_bytes": 75586,
+      "identity_peak_tracemalloc_bytes": 86496,
+      "selected_seconds": {
+        "mean": 0.024512233333856177,
+        "std": 0.0008971541938129721,
+        "samples": [
+          0.024124800009303726,
+          0.025538000001688488,
+          0.02387389999057632
+        ]
+      },
+      "identity_rhs_seconds": {
+        "mean": 0.0071364999991298346,
+        "std": 0.00033274974523252816,
+        "samples": [
+          0.006752999994205311,
+          0.0073487000045133755,
+          0.007307799998670816
+        ]
+      },
+      "speedup_identity_over_selected": 0.29114034212757495,
+      "relative_error_vs_identity_rhs": 1.3090765971925216e-16
+    },
+    {
+      "family": "rskelf",
+      "mode": "diag",
+      "size_label": "n",
+      "size_value": 128,
+      "n": 128,
+      "nfactors": 37,
+      "nlvl": 5,
+      "factor_seconds": 0.024098599998978898,
+      "identity_rhs_bytes": 131072,
+      "largest_factor_block_bytes": 512,
+      "selected_peak_tracemalloc_bytes": 74711,
+      "identity_peak_tracemalloc_bytes": 281296,
+      "selected_seconds": {
+        "mean": 0.018963066667007904,
+        "std": 0.0013189606382696228,
+        "samples": [
+          0.017943300001206808,
+          0.020452600001590326,
+          0.018493299998226576
+        ]
+      },
+      "identity_rhs_seconds": {
+        "mean": 0.0014928333354570593,
+        "std": 5.7654960932606016e-05,
+        "samples": [
+          0.0015049000066937879,
+          0.0014300999901024625,
+          0.0015435000095749274
+        ]
+      },
+      "speedup_identity_over_selected": 0.07872320240556359,
+      "relative_error_vs_identity_rhs": 1.3917382147355022e-16
+    },
+    {
+      "family": "rskelf",
+      "mode": "invdiag",
+      "size_label": "n",
+      "size_value": 128,
+      "n": 128,
+      "nfactors": 37,
+      "nlvl": 5,
+      "factor_seconds": 0.024098599998978898,
+      "identity_rhs_bytes": 131072,
+      "largest_factor_block_bytes": 512,
+      "selected_peak_tracemalloc_bytes": 79283,
+      "identity_peak_tracemalloc_bytes": 301112,
+      "selected_seconds": {
+        "mean": 0.026972766664888088,
+        "std": 0.0014243601266045306,
+        "samples": [
+          0.026816300000064075,
+          0.028468899996369146,
+          0.025633099998231046
+        ]
+      },
+      "identity_rhs_seconds": {
+        "mean": 0.01600749999731003,
+        "std": 0.002212649796819237,
+        "samples": [
+          0.018491599999833852,
+          0.015282899999874644,
+          0.014247999992221594
+        ]
+      },
+      "speedup_identity_over_selected": 0.5934689680220258,
+      "relative_error_vs_identity_rhs": 1.434533798296106e-16
+    },
+    {
+      "family": "hifie",
+      "mode": "diag",
+      "size_label": "n",
+      "size_value": 128,
+      "n": 128,
+      "nfactors": 41,
+      "nlvl": 9,
+      "factor_seconds": 0.07324509999307338,
+      "identity_rhs_bytes": 131072,
+      "largest_factor_block_bytes": 512,
+      "selected_peak_tracemalloc_bytes": 121492,
+      "identity_peak_tracemalloc_bytes": 281296,
+      "selected_seconds": {
+        "mean": 0.04509316666614419,
+        "std": 0.0012667024358232715,
+        "samples": [
+          0.04651430000376422,
+          0.04408289999992121,
+          0.044682299994747154
+        ]
+      },
+      "identity_rhs_seconds": {
+        "mean": 0.001662733329188389,
+        "std": 0.0002111090967589934,
+        "samples": [
+          0.0019057999888900667,
+          0.0015571999974781647,
+          0.0015252000011969358
+        ]
+      },
+      "speedup_identity_over_selected": 0.03687328817465294,
+      "relative_error_vs_identity_rhs": 1.1974285745922075e-16
+    },
+    {
+      "family": "hifie",
+      "mode": "invdiag",
+      "size_label": "n",
+      "size_value": 128,
+      "n": 128,
+      "nfactors": 41,
+      "nlvl": 9,
+      "factor_seconds": 0.07324509999307338,
+      "identity_rhs_bytes": 131072,
+      "largest_factor_block_bytes": 512,
+      "selected_peak_tracemalloc_bytes": 125352,
+      "identity_peak_tracemalloc_bytes": 296898,
+      "selected_seconds": {
+        "mean": 0.04939599999731096,
+        "std": 0.00022496926071245073,
+        "samples": [
+          0.04918440000619739,
+          0.049632299997028895,
+          0.049371299988706596
+        ]
+      },
+      "identity_rhs_seconds": {
+        "mean": 0.015544100009719841,
+        "std": 0.0015814517793001023,
+        "samples": [
+          0.015343700011726469,
+          0.01721620000898838,
+          0.014072400008444674
+        ]
+      },
+      "speedup_identity_over_selected": 0.31468337538598345,
+      "relative_error_vs_identity_rhs": 1.4144694003787824e-16
+    },
+    {
+      "family": "rskelf",
+      "mode": "diag",
+      "size_label": "n",
+      "size_value": 256,
+      "n": 256,
+      "nfactors": 79,
+      "nlvl": 6,
+      "factor_seconds": 0.057181099997251295,
+      "identity_rhs_bytes": 524288,
+      "largest_factor_block_bytes": 512,
+      "selected_peak_tracemalloc_bytes": 125049,
+      "identity_peak_tracemalloc_bytes": 1086160,
+      "selected_seconds": {
+        "mean": 0.04050920000493837,
+        "std": 0.0023655876336379418,
+        "samples": [
+          0.038182999996934086,
+          0.042912300006719306,
+          0.040432300011161715
+        ]
+      },
+      "identity_rhs_seconds": {
+        "mean": 0.003502300004280793,
+        "std": 0.00021571539195501204,
+        "samples": [
+          0.003457200000411831,
+          0.0037370000063674524,
+          0.0033127000060630962
+        ]
+      },
+      "speedup_identity_over_selected": 0.086456903712091,
+      "relative_error_vs_identity_rhs": 1.2437976951050378e-16
+    },
+    {
+      "family": "rskelf",
+      "mode": "invdiag",
+      "size_label": "n",
+      "size_value": 256,
+      "n": 256,
+      "nfactors": 79,
+      "nlvl": 6,
+      "factor_seconds": 0.057181099997251295,
+      "identity_rhs_bytes": 524288,
+      "largest_factor_block_bytes": 512,
+      "selected_peak_tracemalloc_bytes": 128081,
+      "identity_peak_tracemalloc_bytes": 1106406,
+      "selected_seconds": {
+        "mean": 0.054645199998049065,
+        "std": 0.0017270616844683522,
+        "samples": [
+          0.0566219999891473,
+          0.05342890000611078,
+          0.05388469999888912
+        ]
+      },
+      "identity_rhs_seconds": {
+        "mean": 0.030419199994260755,
+        "std": 0.0011931427195479443,
+        "samples": [
+          0.03151419998903293,
+          0.02914759999839589,
+          0.030595799995353445
+        ]
+      },
+      "speedup_identity_over_selected": 0.5566673741764468,
+      "relative_error_vs_identity_rhs": 1.5058511834046983e-16
+    },
+    {
+      "family": "hifie",
+      "mode": "diag",
+      "size_label": "n",
+      "size_value": 256,
+      "n": 256,
+      "nfactors": 83,
+      "nlvl": 11,
+      "factor_seconds": 0.14044179998745676,
+      "identity_rhs_bytes": 524288,
+      "largest_factor_block_bytes": 512,
+      "selected_peak_tracemalloc_bytes": 207057,
+      "identity_peak_tracemalloc_bytes": 1086160,
+      "selected_seconds": {
+        "mean": 0.08305990000856885,
+        "std": 0.00310825409158749,
+        "samples": [
+          0.08632380000199191,
+          0.08272080001188442,
+          0.08013510001183022
+        ]
+      },
+      "identity_rhs_seconds": {
+        "mean": 0.003504500001630125,
+        "std": 8.105559300526875e-05,
+        "samples": [
+          0.0035979999956907704,
+          0.0034614000032888725,
+          0.003454100005910732
+        ]
+      },
+      "speedup_identity_over_selected": 0.042192441855439085,
+      "relative_error_vs_identity_rhs": 1.18687833744435e-16
+    },
+    {
+      "family": "hifie",
+      "mode": "invdiag",
+      "size_label": "n",
+      "size_value": 256,
+      "n": 256,
+      "nfactors": 83,
+      "nlvl": 11,
+      "factor_seconds": 0.14044179998745676,
+      "identity_rhs_bytes": 524288,
+      "largest_factor_block_bytes": 512,
+      "selected_peak_tracemalloc_bytes": 212016,
+      "identity_peak_tracemalloc_bytes": 1107216,
+      "selected_seconds": {
+        "mean": 0.10083253333868925,
+        "std": 0.002978894491580974,
+        "samples": [
+          0.09946540000964887,
+          0.09878260000550654,
+          0.10424960000091232
+        ]
+      },
+      "identity_rhs_seconds": {
+        "mean": 0.03175629999896046,
+        "std": 0.0011550171773207928,
+        "samples": [
+          0.03285879999748431,
+          0.0305551000055857,
+          0.03185499999381136
+        ]
+      },
+      "speedup_identity_over_selected": 0.31494101107519856,
+      "relative_error_vs_identity_rhs": 1.5292899645101612e-16
+    },
+    {
+      "family": "mf",
+      "mode": "diag",
+      "size_label": "grid_n",
+      "size_value": 9,
+      "n": 64,
+      "nfactors": 5,
+      "nlvl": 2,
+      "factor_seconds": 0.002149799998733215,
+      "identity_rhs_bytes": 32768,
+      "largest_factor_block_bytes": 10368,
+      "selected_peak_tracemalloc_bytes": 61423,
+      "identity_peak_tracemalloc_bytes": 104728,
+      "selected_seconds": {
+        "mean": 0.00285306666046381,
+        "std": 3.9426429843754264e-05,
+        "samples": [
+          0.002808499993989244,
+          0.002867299990612082,
+          0.0028833999967901036
+        ]
+      },
+      "identity_rhs_seconds": {
+        "mean": 0.0002568333341817682,
+        "std": 3.973340297504779e-05,
+        "samples": [
+          0.00028950000705663115,
+          0.0002683999919099733,
+          0.00021260000357870013
+        ]
+      },
+      "speedup_identity_over_selected": 0.09002009582910199,
+      "relative_error_vs_identity_rhs": 0.0
+    },
+    {
+      "family": "mf",
+      "mode": "invdiag",
+      "size_label": "grid_n",
+      "size_value": 9,
+      "n": 64,
+      "nfactors": 5,
+      "nlvl": 2,
+      "factor_seconds": 0.002149799998733215,
+      "identity_rhs_bytes": 32768,
+      "largest_factor_block_bytes": 10368,
+      "selected_peak_tracemalloc_bytes": 63515,
+      "identity_peak_tracemalloc_bytes": 137832,
+      "selected_seconds": {
+        "mean": 0.0056591666749833775,
+        "std": 0.0007438655435950132,
+        "samples": [
+          0.005162500005098991,
+          0.005300600008922629,
+          0.006514400010928512
+        ]
+      },
+      "identity_rhs_seconds": {
+        "mean": 0.0009431999981946623,
+        "std": 0.0002933776179332859,
+        "samples": [
+          0.0007558000070275739,
+          0.000792499995441176,
+          0.0012812999921152368
+        ]
+      },
+      "speedup_identity_over_selected": 0.16666764779417506,
+      "relative_error_vs_identity_rhs": 7.077368052887732e-17
+    },
+    {
+      "family": "hifde",
+      "mode": "diag",
+      "size_label": "grid_n",
+      "size_value": 9,
+      "n": 64,
+      "nfactors": 5,
+      "nlvl": 2,
+      "factor_seconds": 0.004353199998149648,
+      "identity_rhs_bytes": 32768,
+      "largest_factor_block_bytes": 10368,
+      "selected_peak_tracemalloc_bytes": 66517,
+      "identity_peak_tracemalloc_bytes": 104656,
+      "selected_seconds": {
+        "mean": 0.005145166670748343,
+        "std": 0.0008480651218455536,
+        "samples": [
+          0.004711100002168678,
+          0.006122400009189732,
+          0.004602000000886619
+        ]
+      },
+      "identity_rhs_seconds": {
+        "mean": 0.0003024333370073388,
+        "std": 3.2748482873592096e-05,
+        "samples": [
+          0.00034020000020973384,
+          0.0002852000034181401,
+          0.00028190000739414245
+        ]
+      },
+      "speedup_identity_over_selected": 0.058780085536733674,
+      "relative_error_vs_identity_rhs": 0.0
+    },
+    {
+      "family": "hifde",
+      "mode": "invdiag",
+      "size_label": "grid_n",
+      "size_value": 9,
+      "n": 64,
+      "nfactors": 5,
+      "nlvl": 2,
+      "factor_seconds": 0.004353199998149648,
+      "identity_rhs_bytes": 32768,
+      "largest_factor_block_bytes": 10368,
+      "selected_peak_tracemalloc_bytes": 67106,
+      "identity_peak_tracemalloc_bytes": 108282,
+      "selected_seconds": {
+        "mean": 0.006307399996633952,
+        "std": 0.0001421760553204091,
+        "samples": [
+          0.006294699996942654,
+          0.006171999993966892,
+          0.006455499998992309
+        ]
+      },
+      "identity_rhs_seconds": {
+        "mean": 0.0022786666619746634,
+        "std": 0.00034643570496260167,
+        "samples": [
+          0.002155299996957183,
+          0.0020108000026084483,
+          0.0026698999863583595
+        ]
+      },
+      "speedup_identity_over_selected": 0.3612687736929181,
+      "relative_error_vs_identity_rhs": 1.1065266217778493e-16
+    },
+    {
+      "family": "mf",
+      "mode": "diag",
+      "size_label": "grid_n",
+      "size_value": 13,
+      "n": 144,
+      "nfactors": 5,
+      "nlvl": 2,
+      "factor_seconds": 0.002610900002764538,
+      "identity_rhs_bytes": 165888,
+      "largest_factor_block_bytes": 32768,
+      "selected_peak_tracemalloc_bytes": 165316,
+      "identity_peak_tracemalloc_bytes": 501912,
+      "selected_seconds": {
+        "mean": 0.0031487000039002546,
+        "std": 0.000344278766137369,
+        "samples": [
+          0.0030685000092489645,
+          0.0035260000004200265,
+          0.0028516000020317733
+        ]
+      },
+      "identity_rhs_seconds": {
+        "mean": 0.0003627000017634903,
+        "std": 4.683887404291605e-05,
+        "samples": [
+          0.00041510000301059335,
+          0.00034810000215657055,
+          0.0003249000001233071
+        ]
+      },
+      "speedup_identity_over_selected": 0.11519039645384395,
+      "relative_error_vs_identity_rhs": 2.6168207644729587e-17
+    },
+    {
+      "family": "mf",
+      "mode": "invdiag",
+      "size_label": "grid_n",
+      "size_value": 13,
+      "n": 144,
+      "nfactors": 5,
+      "nlvl": 2,
+      "factor_seconds": 0.002610900002764538,
+      "identity_rhs_bytes": 165888,
+      "largest_factor_block_bytes": 32768,
+      "selected_peak_tracemalloc_bytes": 182773,
+      "identity_peak_tracemalloc_bytes": 668136,
+      "selected_seconds": {
+        "mean": 0.005079133334220387,
+        "std": 0.00018461054361277457,
+        "samples": [
+          0.005281999998260289,
+          0.005034400004660711,
+          0.004920999999740161
+        ]
+      },
+      "identity_rhs_seconds": {
+        "mean": 0.0022989000038554273,
+        "std": 0.0007126003155857206,
+        "samples": [
+          0.0019109999993816018,
+          0.003121300003840588,
+          0.0018644000083440915
+        ]
+      },
+      "speedup_identity_over_selected": 0.4526165888118574,
+      "relative_error_vs_identity_rhs": 7.421618496481149e-17
+    },
+    {
+      "family": "hifde",
+      "mode": "diag",
+      "size_label": "grid_n",
+      "size_value": 13,
+      "n": 144,
+      "nfactors": 5,
+      "nlvl": 2,
+      "factor_seconds": 0.002728799998294562,
+      "identity_rhs_bytes": 165888,
+      "largest_factor_block_bytes": 32768,
+      "selected_peak_tracemalloc_bytes": 187190,
+      "identity_peak_tracemalloc_bytes": 501840,
+      "selected_seconds": {
+        "mean": 0.004562200003420003,
+        "std": 1.4650251111449202e-05,
+        "samples": [
+          0.004562100002658553,
+          0.004547600008663721,
+          0.0045768999989377335
+        ]
+      },
+      "identity_rhs_seconds": {
+        "mean": 0.0006985000024239222,
+        "std": 0.00016933968781700085,
+        "samples": [
+          0.000524200004292652,
+          0.0008624000038253143,
+          0.0007088999991538003
+        ]
+      },
+      "speedup_identity_over_selected": 0.15310595806854135,
+      "relative_error_vs_identity_rhs": 1.3084103822364794e-17
+    },
+    {
+      "family": "hifde",
+      "mode": "invdiag",
+      "size_label": "grid_n",
+      "size_value": 13,
+      "n": 144,
+      "nfactors": 5,
+      "nlvl": 2,
+      "factor_seconds": 0.002728799998294562,
+      "identity_rhs_bytes": 165888,
+      "largest_factor_block_bytes": 32768,
+      "selected_peak_tracemalloc_bytes": 187781,
+      "identity_peak_tracemalloc_bytes": 505628,
+      "selected_seconds": {
+        "mean": 0.0065174999957283335,
+        "std": 0.00012815073637834044,
+        "samples": [
+          0.006383599989931099,
+          0.0066389999992679805,
+          0.006529899997985922
+        ]
+      },
+      "identity_rhs_seconds": {
+        "mean": 0.0024176666726513454,
+        "std": 0.0002755931906292434,
+        "samples": [
+          0.002221200003987178,
+          0.0022991000005276874,
+          0.002732700013439171
+        ]
+      },
+      "speedup_identity_over_selected": 0.37095000755441815,
+      "relative_error_vs_identity_rhs": 1.4843236992962298e-16
+    },
+    {
+      "family": "mf",
+      "mode": "diag",
+      "size_label": "grid_n",
+      "size_value": 17,
+      "n": 256,
+      "nfactors": 13,
+      "nlvl": 3,
+      "factor_seconds": 0.0075453000026755035,
+      "identity_rhs_bytes": 524288,
+      "largest_factor_block_bytes": 19208,
+      "selected_peak_tracemalloc_bytes": 173865,
+      "identity_peak_tracemalloc_bytes": 1239832,
+      "selected_seconds": {
+        "mean": 0.007895666669355705,
+        "std": 0.00019689958207463122,
+        "samples": [
+          0.0077415999985532835,
+          0.007827900000847876,
+          0.008117500008665957
+        ]
+      },
+      "identity_rhs_seconds": {
+        "mean": 0.0010345000046072528,
+        "std": 0.00011153039571135467,
+        "samples": [
+          0.001071799997589551,
+          0.0009091000101761892,
+          0.0011226000060560182
+        ]
+      },
+      "speedup_identity_over_selected": 0.1310212358156286,
+      "relative_error_vs_identity_rhs": 2.5018537765542006e-17
+    },
+    {
+      "family": "mf",
+      "mode": "invdiag",
+      "size_label": "grid_n",
+      "size_value": 17,
+      "n": 256,
+      "nfactors": 13,
+      "nlvl": 3,
+      "factor_seconds": 0.0075453000026755035,
+      "identity_rhs_bytes": 524288,
+      "largest_factor_block_bytes": 19208,
+      "selected_peak_tracemalloc_bytes": 179038,
+      "identity_peak_tracemalloc_bytes": 1764456,
+      "selected_seconds": {
+        "mean": 0.014316933336279666,
+        "std": 0.0015188489962069203,
+        "samples": [
+          0.014139999999315478,
+          0.015916500007733703,
+          0.012894300001789816
+        ]
+      },
+      "identity_rhs_seconds": {
+        "mean": 0.004191966664317685,
+        "std": 0.0005876532330847309,
+        "samples": [
+          0.00358550000237301,
+          0.004231599988997914,
+          0.004758800001582131
+        ]
+      },
+      "speedup_identity_over_selected": 0.29279780563726443,
+      "relative_error_vs_identity_rhs": 9.839777066587308e-17
+    },
+    {
+      "family": "hifde",
+      "mode": "diag",
+      "size_label": "grid_n",
+      "size_value": 17,
+      "n": 256,
+      "nfactors": 15,
+      "nlvl": 4,
+      "factor_seconds": 0.009827299989410676,
+      "identity_rhs_bytes": 524288,
+      "largest_factor_block_bytes": 19208,
+      "selected_peak_tracemalloc_bytes": 277010,
+      "identity_peak_tracemalloc_bytes": 1227472,
+      "selected_seconds": {
+        "mean": 0.019756800000322983,
+        "std": 0.00198150433197621,
+        "samples": [
+          0.021768100006738678,
+          0.017806499992730096,
+          0.019695800001500174
+        ]
+      },
+      "identity_rhs_seconds": {
+        "mean": 0.0015261000031993415,
+        "std": 9.060485537011174e-05,
+        "samples": [
+          0.0014243000041460618,
+          0.001597900001797825,
+          0.0015561000036541373
+        ]
+      },
+      "speedup_identity_over_selected": 0.07724429073404564,
+      "relative_error_vs_identity_rhs": 2.5018537765542006e-17
+    },
+    {
+      "family": "hifde",
+      "mode": "invdiag",
+      "size_label": "grid_n",
+      "size_value": 17,
+      "n": 256,
+      "nfactors": 15,
+      "nlvl": 4,
+      "factor_seconds": 0.009827299989410676,
+      "identity_rhs_bytes": 524288,
+      "largest_factor_block_bytes": 19208,
+      "selected_peak_tracemalloc_bytes": 280154,
+      "identity_peak_tracemalloc_bytes": 1232694,
+      "selected_seconds": {
+        "mean": 0.024136900004426327,
+        "std": 0.0009185604286593864,
+        "samples": [
+          0.023434200003976002,
+          0.025176299997838214,
+          0.023800200011464767
+        ]
+      },
+      "identity_rhs_seconds": {
+        "mean": 0.008236100004675487,
+        "std": 0.001148153927713176,
+        "samples": [
+          0.00749540000106208,
+          0.0076542000024346635,
+          0.00955870001052972
+        ]
+      },
+      "speedup_identity_over_selected": 0.341224432431883,
+      "relative_error_vs_identity_rhs": 2.469074853070874e-16
+    }
+  ]
+}
