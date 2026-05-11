@@ -25,6 +25,30 @@ class CoreTests(unittest.TestCase):
         if rd.size:
             np.testing.assert_allclose(A[:, rd], A[:, sk] @ T, atol=1e-10)
 
+    def test_id_honors_fixed_columns_and_reports_iterations(self):
+        rng = np.random.default_rng(2)
+        A = rng.standard_normal((8, 6))
+
+        sk, rd, T, niter = id(A, 3, fixed=[4, 1], return_niter=True)
+
+        np.testing.assert_array_equal(sk[:2], [4, 1])
+        self.assertEqual(sk.size, 3)
+        self.assertGreaterEqual(niter, 0)
+        self.assertEqual(T.shape, (sk.size, rd.size))
+
+    def test_id_rrqr_refinement_bounds_interpolation(self):
+        rng = np.random.default_rng(0)
+        A = None
+        for _ in range(3):
+            A = rng.standard_normal((8, 10))
+
+        sk, rd, T, niter = id(A, 4, Tmax=1.01, rrqr_iter=50, return_niter=True)
+
+        self.assertEqual(sk.size, 4)
+        self.assertGreater(niter, 0)
+        self.assertLessEqual(np.max(np.abs(T)), 1.01 + 1e-12)
+        self.assertEqual(T.shape, (sk.size, rd.size))
+
     def test_snorm_matches_diagonal_norm(self):
         A = np.diag([1.0, -3.0, 2.0])
         s, _ = snorm(3, lambda x: A @ x, lambda x: A.T @ x, tol=1e-8)

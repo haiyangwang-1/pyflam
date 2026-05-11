@@ -207,12 +207,12 @@ def id(
     Tmax: float = 2,
     rrqr_iter: float = np.inf,
     fixed: Iterable[int] | None = None,
+    return_niter: bool = False,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray] | tuple[np.ndarray, np.ndarray, np.ndarray, int]:
     """Interpolative decomposition of matrix columns.
 
-    The implementation uses SciPy's pivoted QR for the primary decomposition.
-    It preserves FLAM's return contract but does not perform Gu-Eisenstat
-    refinement iterations; ``rrqr_iter`` is accepted for API compatibility.
+    This follows FLAM's pivoted QR and RRQR-refinement control flow, including
+    fixed-column preprocessing.  The returned indices are 0-based.
     """
 
     if rank_or_tol < 0:
@@ -228,50 +228,270 @@ def id(
     m, n = A.shape
     fixed_arr = np.asarray(list(fixed) if fixed is not None else [], dtype=np.int64)
     if n == 0:
-        return np.array([], dtype=np.int64), np.array([], dtype=np.int64), np.zeros((0, 0), dtype=A.dtype)
+        out = (np.array([], dtype=np.int64), np.array([], dtype=np.int64), np.zeros((0, 0), dtype=A.dtype))
+        return (*out, 0) if return_niter else out
     if m == 0:
-        return np.array([], dtype=np.int64), np.arange(n, dtype=np.int64), np.zeros((0, n), dtype=A.dtype)
+        out = (np.array([], dtype=np.int64), np.arange(n, dtype=np.int64), np.zeros((0, n), dtype=A.dtype))
+        return (*out, 0) if return_niter else out
 
     tol = rank_or_tol % 1
     kmax = int(np.floor(rank_or_tol))
     if kmax == 0 or kmax > n:
         kmax = n
+    niter = 0
 
     if fixed_arr.size:
-        fixed_arr = np.unique(fixed_arr)
+        if np.any(fixed_arr < 0) or np.any(fixed_arr >= n):
+            raise IndexError("fixed column index out of range")
+        if np.unique(fixed_arr).size != fixed_arr.size:
+            raise ValueError("fixed column indices must be unique")
         free_mask = np.ones(n, dtype=bool)
         free_mask[fixed_arr] = False
         free = np.flatnonzero(free_mask)
-        if fixed_arr.size >= kmax:
-            sk = fixed_arr[:kmax]
-            rd = np.setdiff1d(np.arange(n), sk, assume_unique=False)
-            T = la.lstsq(A[:, sk], A[:, rd])[0] if sk.size and rd.size else np.zeros((sk.size, rd.size), dtype=A.dtype)
-            return sk, rd, T
-        Q, _ = la.qr(A[:, fixed_arr], mode="economic")
-        residual = A[:, free] - Q @ (Q.conj().T @ A[:, free])
-        sk_free, rd_free, T_free = id(residual, max(kmax - fixed_arr.size, tol), Tmax, rrqr_iter)  # type: ignore[misc]
-        sk = np.concatenate((fixed_arr, free[sk_free]))
-        rd = free[rd_free]
-        if rd.size:
-            T = la.lstsq(A[:, sk], A[:, rd])[0]
-        else:
-            T = np.zeros((sk.size, 0), dtype=A.dtype)
-        return sk, rd, T
+        if free.size == 0:
+            out = (fixed_arr.copy(), np.array([], dtype=np.int64), np.zeros((fixed_arr.size, 0), dtype=A.dtype))
+            return (*out, niter) if return_niter else out
 
-    _, R, piv = la.qr(A, mode="economic", pivoting=True)
-    diag = np.abs(np.diag(R)) if R.ndim == 2 else np.asarray([abs(R[0])])
-    scale = diag[0] if diag.size else 0.0
-    k_tol = int(np.count_nonzero(diag > tol * scale))
-    k = min(k_tol, kmax)
-    if k == n:
-        return piv[:k].astype(np.int64), np.array([], dtype=np.int64), np.zeros((k, 0), dtype=A.dtype)
-    if k == 0:
-        return np.array([], dtype=np.int64), piv.astype(np.int64), np.zeros((0, n), dtype=A.dtype)
+        Afix = A[:, fixed_arr]
+        cmax = float(np.sqrt(np.max(np.sum(np.abs(Afix) ** 2, axis=0)))) if Afix.size else 0.0
+        Q, R1 = la.qr(Afix, mode="economic", check_finite=False)
+        Afree = A[:, free]
+        R2 = Q.conj().T @ Afree
+        Awork = Afree - Q @ R2
+        kmax = max(kmax - fixed_arr.size, 0)
+    else:
+        free = np.arange(n, dtype=np.int64)
+        cmax = 0.0
+        R1 = np.zeros((0, 0), dtype=A.dtype)
+        R2 = np.zeros((0, n), dtype=A.dtype)
+        Awork = A
 
-    T = la.solve_triangular(R[:k, :k], R[:k, k:], lower=False)
+    mw, nw = Awork.shape
+    if mw > 8 * nw:
+        _, Awork = la.qr(Awork, mode="economic", check_finite=False)
+
+    _, R, piv = la.qr(Awork, mode="economic", pivoting=True, check_finite=False)
+    R = np.asarray(R)
+    if R.size:
+        cmax = max(cmax, float(abs(R.flat[0])))
+    atol = cmax * tol
+    diagR = np.diag(R) if R.ndim == 2 else np.asarray([R.flat[0]])
+    k_prec = int(np.count_nonzero(np.abs(diagR) > atol))
+    R = R[:k_prec, :].copy()
+    k = min(k_prec, kmax)
+    if k > 0 and k < nw:
+        R[:k, k:] = la.solve_triangular(R[:k, :k], R[:k, k:], lower=False, check_finite=False)
+
+    if np.isfinite(Tmax) and rrqr_iter > 0 and k > 0 and k < nw:
+        R, piv, k, niter = _rrqr_refine(R, piv.astype(np.int64), k, nw, atol, Tmax, rrqr_iter)
+
     sk = piv[:k].astype(np.int64)
     rd = piv[k:].astype(np.int64)
-    return sk, rd, T
+    T = R[:k, k:].copy()
+
+    if fixed_arr.size:
+        if rd.size:
+            top = la.solve_triangular(
+                R1,
+                R2[:, rd] - (R2[:, sk] @ T if sk.size else 0),
+                lower=False,
+                check_finite=False,
+            )
+        else:
+            top = np.zeros((fixed_arr.size, 0), dtype=A.dtype)
+        T = np.vstack((top, T))
+        sk = np.concatenate((fixed_arr, free[sk]))
+        rd = free[rd]
+
+    out = (sk, rd, T)
+    return (*out, niter) if return_niter else out
+
+
+def _rrqr_refine(
+    R: np.ndarray,
+    piv: np.ndarray,
+    k: int,
+    n: int,
+    atol: float,
+    Tmax: float,
+    rrqr_iter: float,
+) -> tuple[np.ndarray, np.ndarray, int, int]:
+    f2 = Tmax**2
+    c2 = _residual_col_norms(R, k, n)
+    r2 = _inverse_row_norms(R[:k, :k])
+    niter = 0
+    conv = False
+    eye_dtype = np.result_type(R, complex if np.iscomplexobj(R) else float)
+
+    while niter < rrqr_iter and k > 0 and k < n:
+        tmp = np.abs(R[:k, k:]) ** 2 + r2[:, None] * c2[None, :]
+        idx = int(np.argmax(tmp, axis=None))
+        t2 = float(tmp.reshape(-1)[idx])
+        if t2 <= f2:
+            conv = True
+            break
+        niter += 1
+        i, j = np.unravel_index(idx, tmp.shape)
+
+        if i < k - 1:
+            _swap(piv, i, k - 1)
+            u_qr = R[:k, k - 1] - R[:k, i]
+            v_qr = np.zeros(k, dtype=R.dtype)
+            v_qr[i] = 1
+            v_qr[k - 1] = -1
+            _, R11 = la.qr_update(
+                np.eye(k, dtype=eye_dtype),
+                R[:k, :k],
+                u_qr,
+                v_qr,
+                check_finite=False,
+            )
+            R[:k, :k] = R11
+            R[[i, k - 1], k:] = R[[k - 1, i], k:]
+            _swap(r2, i, k - 1)
+
+        if j > 0:
+            _swap(piv, k, k + j)
+            R[:, [k, k + j]] = R[:, [k + j, k]]
+            _swap(c2, 0, j)
+
+        if k > 1:
+            v = la.solve_triangular(R[: k - 1, : k - 1], R[: k - 1, k - 1], check_finite=False)
+            r2[: k - 1] = r2[: k - 1] - np.abs(v / R[k - 1, k - 1]) ** 2
+        r2[k - 1] = 0
+
+        if R.shape[0] == k:
+            u = R[:, k].copy()
+            R[:, k] = R[:, :k] @ R[:, k]
+            R[: k - 1, k - 1] = 0
+            R[k - 1, k - 1] = 1
+        else:
+            hh = R[k:, k].copy()
+            phase = np.exp(1j * np.angle(R[k, k])) if np.iscomplexobj(R) else (1.0 if R[k, k] >= 0 else -1.0)
+            hh[0] = hh[0] + np.sqrt(max(c2[0], 0.0)) * phase
+            nhh = np.linalg.norm(hh)
+            if nhh:
+                hh = hh / nhh
+                R[k:, k + 1 :] = R[k:, k + 1 :] - 2 * np.outer(hh, hh.conj() @ R[k:, k + 1 :])
+            R[k + 1 :, k] = 0
+            R[k, k] = np.sqrt(max(c2[0], 0.0))
+
+            R[:k, k] = R[:k, :k] @ R[:k, k]
+            R[k - 1, k + 1 :] = R[k - 1, k - 1] * R[k - 1, k + 1 :]
+            r = R[:k, k - 1].copy()
+            s = R[k - 1, k + 1 :].copy()
+
+            c2 = c2 - np.abs(R[k, k:]) ** 2
+            G = _givens(R[k - 1, k], R[k, k])
+            R[k - 1 : k + 1, k - 1 :] = G @ R[k - 1 : k + 1, k - 1 :]
+            c2 = c2 + np.abs(R[k, k:]) ** 2
+            c2[0] = np.abs(R[k, k - 1]) ** 2
+
+            tmp_diag = R[k - 1, k - 1]
+            R[k - 1, k - 1] = r[k - 1]
+            u = la.solve_triangular(R[:k, :k], R[:k, k], check_finite=False)
+            R[k - 1, k - 1] = tmp_diag
+
+            if k > 1:
+                v = la.solve_triangular(R[: k - 1, : k - 1], r[: k - 1], check_finite=False)
+                R[k - 1, k - 1] = R[k - 1, k - 1] / r[k - 1]
+                R[: k - 1, k - 1] = v * (1 - R[k - 1, k - 1])
+                R[: k - 1, k + 1 :] = R[: k - 1, k + 1 :] + (v / r[k - 1])[:, None] * (
+                    s - R[k - 1, k + 1 :]
+                )
+            else:
+                R[k - 1, k - 1] = R[k - 1, k - 1] / r[k - 1]
+            R[k - 1, k + 1 :] = R[k - 1, k + 1 :] / r[k - 1]
+
+        _swap(piv, k - 1, k)
+        R[:, [k - 1, k]] = R[:, [k, k - 1]]
+        if k > 1:
+            v = la.solve_triangular(R[: k - 1, : k - 1], R[: k - 1, k - 1], check_finite=False)
+            r2[: k - 1] = r2[: k - 1] + np.abs(v / R[k - 1, k - 1]) ** 2
+        r2[k - 1] = 1 / np.abs(R[k - 1, k - 1]) ** 2
+
+        u[k - 1] = u[k - 1] - 1
+        R[:k, k:] = R[:k, k:] - np.outer(u, R[k - 1, k:]) / (1 + u[k - 1])
+
+        rvals = np.full_like(r2, np.inf, dtype=float)
+        nz = r2 > 0
+        rvals[nz] = 1 / np.sqrt(r2[nz])
+        drop = int(np.argmin(rvals))
+        if rvals[drop] > atol:
+            continue
+
+        if drop < k - 1:
+            _swap(piv, drop, k - 1)
+            u_qr = R[:k, k - 1] - R[:k, drop]
+            v_qr = np.zeros(k, dtype=R.dtype)
+            v_qr[drop] = 1
+            v_qr[k - 1] = -1
+            _, R11 = la.qr_update(
+                np.eye(k, dtype=eye_dtype),
+                R[:k, :k],
+                u_qr,
+                v_qr,
+                check_finite=False,
+            )
+            R[:k, :k] = R11
+            R[[drop, k - 1], k:] = R[[k - 1, drop], k:]
+            _swap(r2, drop, k - 1)
+
+        c2 = np.zeros(n - k + 1, dtype=float)
+        if k > 1:
+            v = la.solve_triangular(R[: k - 1, : k - 1], R[: k - 1, k - 1], check_finite=False)
+            r2 = r2[: k - 1] - np.abs(v / R[k - 1, k - 1]) ** 2
+        else:
+            r2 = np.zeros(0, dtype=float)
+        k -= 1
+        if k == 0:
+            R = R[:0, :]
+            break
+        r = la.solve_triangular(R[:k, :k], R[:k, k], check_finite=False)
+        tail = R[:k, k + 1 :] + r[:, None] * R[k, k + 1 :]
+        R[:k, k:] = np.column_stack((r, tail))
+        R = R[:k, :]
+
+    if not conv and k > 0 and k < n:
+        warnings.warn("maximum RRQR iterations reached", RuntimeWarning)
+    return R, piv, k, niter
+
+
+def _residual_col_norms(R: np.ndarray, k: int, n: int) -> np.ndarray:
+    if R.shape[0] <= k:
+        return np.zeros(n - k, dtype=float)
+    return np.sum(np.abs(R[k:, k:]) ** 2, axis=0)
+
+
+def _inverse_row_norms(R: np.ndarray) -> np.ndarray:
+    if R.size == 0:
+        return np.zeros(0, dtype=float)
+    invR = la.solve_triangular(R, np.eye(R.shape[0], dtype=R.dtype), check_finite=False)
+    return np.sum(np.abs(invR) ** 2, axis=1)
+
+
+def _givens(a, b) -> np.ndarray:
+    if b == 0:
+        c = 1.0
+        s = 0.0
+        r = a
+    elif a == 0:
+        c = 0.0
+        s = np.conj(b) / abs(b)
+        r = abs(b)
+    else:
+        scale = abs(a) + abs(b)
+        norm = scale * np.sqrt((abs(a) / scale) ** 2 + (abs(b) / scale) ** 2)
+        alpha = a / abs(a)
+        c = abs(a) / norm
+        s = alpha * np.conj(b) / norm
+        r = alpha * norm
+    return np.array([[c, s], [-np.conj(s), c]], dtype=np.result_type(a, b, complex)) if np.iscomplexobj([a, b]) else np.array([[c, s], [-s, c]])
+
+
+def _swap(arr: np.ndarray, i: int, j: int) -> None:
+    if i != j:
+        arr[[i, j]] = arr[[j, i]]
 
 
 def snorm(
