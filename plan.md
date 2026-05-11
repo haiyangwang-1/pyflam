@@ -112,7 +112,7 @@ bug instead of silently skipping.
 - [x] Cover high-dimensional tree child-code overflow.
 - [x] Add degenerate-point end-to-end tests for `rskelf`, `rskel`, and `ifmm`.
 - [x] Add rank-cap versus tolerance-mode tests for `id`.
-- [ ] Add `id` tests with fixed columns, complex inputs, empty matrices, and
+- [x] Add `id` tests with fixed columns, complex inputs, empty matrices, and
       rank-deficient matrices.
 - [ ] Add nontrivial callable `stop` tests for partial `rskelf`.
 - [x] Cover complex sparse LU logdet and transpose/adjoint solves in `mf`.

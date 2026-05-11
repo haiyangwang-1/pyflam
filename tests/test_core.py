@@ -100,6 +100,27 @@ class CoreTests(unittest.TestCase):
         if rd.size:
             np.testing.assert_allclose(A[:, rd], A[:, sk] @ T, atol=1e-10)
 
+    def test_id_complex_empty_fixed_and_rank_deficient_inputs(self):
+        sk, rd, T = id(np.empty((3, 0)), 1e-12)
+        np.testing.assert_array_equal(sk, [])
+        np.testing.assert_array_equal(rd, [])
+        self.assertEqual(T.shape, (0, 0))
+
+        sk, rd, T = id(np.empty((0, 4), dtype=complex), 1e-12)
+        np.testing.assert_array_equal(sk, [])
+        np.testing.assert_array_equal(rd, np.arange(4))
+        self.assertEqual(T.shape, (0, 4))
+        self.assertTrue(np.iscomplexobj(T))
+
+        u = np.array([[1.0 + 1.0j], [2.0 - 0.5j], [-1.0j]])
+        v = np.array([[1.0, 2.0j, -1.0, 0.5j]])
+        A = u @ v
+        sk, rd, T = id(A, 1e-12, fixed=[2])
+        np.testing.assert_array_equal(sk[:1], [2])
+        self.assertEqual(sk.size, 1)
+        np.testing.assert_allclose(A[:, rd], A[:, sk] @ T, atol=1e-10)
+        self.assertTrue(np.iscomplexobj(T))
+
     def test_snorm_matches_diagonal_norm(self):
         A = np.diag([1.0, -3.0, 2.0])
         s, _ = snorm(3, lambda x: A @ x, lambda x: A.T @ x, tol=1e-8)
