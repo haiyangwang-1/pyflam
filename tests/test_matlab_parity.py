@@ -32,6 +32,7 @@ from pyflam import (
     rskelf,
     rskelf_logdet,
     rskelf_mv,
+    rskelf_partial_info,
     rskelf_sv,
 )
 
@@ -282,6 +283,43 @@ class MatlabParityTests(unittest.TestCase):
         self.assertGreater(F.Si.size, 0)
         np.testing.assert_allclose(rskelf_mv(F, data["X"]), data["Ymv"], rtol=1e-9, atol=1e-9)
         np.testing.assert_allclose(rskelf_sv(F, data["X"]), data["Ysv"], rtol=1e-9, atol=1e-9)
+
+    def test_rskelf_partial_info(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "partial_info.mat"
+            script = Path(tmp) / "run_partial_info.m"
+            script.write_text(
+                textwrap.dedent(
+                    f"""
+                    addpath(genpath('{str(FLAM_REF).replace("'", "''")}'));
+                    n = 18;
+                    x = linspace(0,1,n);
+                    A = @(i,j) 1./(1 + abs(reshape(x(i),[],1) - reshape(x(j),1,[]))) + 2*(i(:)==j(:)');
+                    F = rskelf(A,x,3,1e-10,[],struct('symm','n','stop',3));
+                    [sk,S] = rskelf_partial_info(F);
+                    Ad = A(1:n,1:n);
+                    save('{str(out).replace("'", "''")}','Ad','sk','S');
+                    exit;
+                    """
+                )
+            )
+            subprocess.run(
+                [str(MATLAB), "-batch", f"run('{script.as_posix()}')"],
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                timeout=120,
+            )
+            data = scipy.io.loadmat(out)
+
+        x = np.linspace(0.0, 1.0, 18).reshape(1, -1)
+        F = rskelf(data["Ad"], x, 3, 1e-10, opts={"symm": "n", "stop": 3})
+        sk, S = rskelf_partial_info(F)
+        np.testing.assert_array_equal(sk, data["sk"].ravel().astype(np.int64) - 1)
+        self.assertEqual(S.shape, data["S"].shape)
+        self.assertEqual(S.nnz, data["S"].nnz)
+        np.testing.assert_allclose((S - data["S"]).toarray(), 0, rtol=1e-8, atol=1e-8)
 
     def test_rskel_apply_and_extended_sparse(self):
         with tempfile.TemporaryDirectory() as tmp:
