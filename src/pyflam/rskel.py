@@ -49,10 +49,10 @@ class RSkelFactor(StructMixin):
 def rskel(A, rx, cx, occ, rank_or_tol, pxyfun=None, opts=None) -> RSkelFactor:
     """Compress a dense matrix using FLAM's recursive skeletonization interface.
 
-    This first Python implementation preserves the public contract and exact
-    application semantics by retaining the materialized matrix. The tree,
-    permutations, options, and callback/index conventions are compatible with
-    the MATLAB routine and provide the substrate for later hierarchical storage.
+    The tree, permutations, options, and callback/index conventions are
+    compatible with the MATLAB routine. Matrix callbacks are evaluated only for
+    requested subblocks; dense/sparse array inputs are retained for dtype and
+    compatibility metadata.
     """
 
     defaults = {"lvlmax": np.inf, "ext": None, "Tmax": 2, "rrqr_iter": np.inf, "symm": "n", "verb": 0}
