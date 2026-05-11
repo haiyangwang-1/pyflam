@@ -229,6 +229,40 @@ class RSkelfOptionParityTests(unittest.TestCase):
         np.testing.assert_allclose(rskelf_sv(F, data["X"]), data["Ysv"], rtol=1e-9, atol=1e-9)
         self.assertLess(logdet_mod_error(rskelf_logdet(F), data["ld"].item()), 1e-9)
 
+    def test_mv_transpose_modes_match_matlab(self):
+        data = run_matlab_export(
+            "rskelf_mv_trans",
+            textwrap.dedent(
+                f"""
+                addpath(genpath('{str(FLAM_REF).replace("'", "''")}'));
+                n = 20;
+                x = linspace(0,1,n);
+                row = reshape(x,[],1);
+                col = reshape(x,1,[]);
+                dx = row - col;
+                Ad = 1./(1 + abs(dx)) + 3*eye(n) + 0.03i*(row + 2*col);
+                X = reshape(sin((1:(2*n))/17), n, 2) ...
+                    + 1i*reshape(cos((1:(2*n))/19), n, 2);
+                F = rskelf(Ad,x,2,1e-10,[],struct('symm','n'));
+                Yn = rskelf_mv(F,X,'n');
+                Yt = rskelf_mv(F,X,'t');
+                Yc = rskelf_mv(F,X,'c');
+                nfactors = length(F.factors);
+                save('__OUT__','Ad','X','Yn','Yt','Yc','nfactors');
+                exit;
+                """
+            ),
+        )
+
+        x = np.linspace(0.0, 1.0, 20).reshape(1, -1)
+        F = rskelf(data["Ad"], x, occ=2, rank_or_tol=1e-10, opts={"symm": "n"})
+
+        self.assertEqual(len(F.factors), int(data["nfactors"].ravel()[0]))
+        self.assertEqual(F.Si.size, 0)
+        np.testing.assert_allclose(rskelf_mv(F, data["X"], "n"), data["Yn"], rtol=1e-9, atol=1e-9)
+        np.testing.assert_allclose(rskelf_mv(F, data["X"], "t"), data["Yt"], rtol=1e-9, atol=1e-9)
+        np.testing.assert_allclose(rskelf_mv(F, data["X"], "c"), data["Yc"], rtol=1e-9, atol=1e-9)
+
     def test_symmetric_mode_matches_matlab(self):
         data = run_matlab_export(
             "rskelf_symm_s",
