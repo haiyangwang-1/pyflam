@@ -53,7 +53,7 @@ class MFFactor(StructMixin):
 def mfx(A, x, occ, opts: dict[str, Any] | None = None) -> MFFactor:
     """Factor a sparse matrix using FLAM's point-cloud multifrontal API."""
 
-    defaults = {"lvlmax": np.inf, "ext": None, "symm": "n", "verb": 0}
+    defaults = {"lvlmax": np.inf, "ext": None, "symm": "n", "verb": 0, "debug_dense": False}
     o = _normalise_opts(opts, defaults)
     o["symm"] = _mf_symm(o["symm"])
     x = _as_points(x)
@@ -61,13 +61,15 @@ def mfx(A, x, occ, opts: dict[str, Any] | None = None) -> MFFactor:
     if occ <= 0:
         raise ValueError("leaf occupancy must be positive")
     tree = hypoct(x, occ, o["lvlmax"], o["ext"])
+    if o.get("debug_dense"):
+        return _make_factor(A, N, o, tree=tree)
     return _mfx_hierarchical(A, N, o, tree)
 
 
 def mf2(A, n: int, occ: int, opts: dict[str, Any] | None = None) -> MFFactor:
     """Factor a matrix on a regular ``(n - 1) x (n - 1)`` mesh."""
 
-    defaults = {"lvlmax": np.inf, "symm": "n", "verb": 0}
+    defaults = {"lvlmax": np.inf, "symm": "n", "verb": 0, "debug_dense": False}
     o = _normalise_opts(opts, defaults)
     o["symm"] = _mf_symm(o["symm"])
     if n <= 0:
@@ -76,13 +78,15 @@ def mf2(A, n: int, occ: int, opts: dict[str, Any] | None = None) -> MFFactor:
         raise ValueError("leaf occupancy must be positive")
     if o["lvlmax"] < 1:
         raise ValueError("maximum tree depth must be at least 1")
+    if o.get("debug_dense"):
+        return _make_factor(A, (int(n) - 1) ** 2, o)
     return _mf2_hierarchical(A, int(n), int(occ), o)
 
 
 def mf3(A, n: int, occ: int, opts: dict[str, Any] | None = None) -> MFFactor:
     """Factor a matrix on a regular ``(n - 1)^3`` mesh."""
 
-    defaults = {"lvlmax": np.inf, "symm": "n", "verb": 0}
+    defaults = {"lvlmax": np.inf, "symm": "n", "verb": 0, "debug_dense": False}
     o = _normalise_opts(opts, defaults)
     o["symm"] = _mf_symm(o["symm"])
     if n <= 0:
@@ -91,6 +95,8 @@ def mf3(A, n: int, occ: int, opts: dict[str, Any] | None = None) -> MFFactor:
         raise ValueError("leaf occupancy must be positive")
     if o["lvlmax"] < 1:
         raise ValueError("maximum tree depth must be at least 1")
+    if o.get("debug_dense"):
+        return _make_factor(A, (int(n) - 1) ** 3, o)
     return _mf3_hierarchical(A, int(n), int(occ), o)
 
 

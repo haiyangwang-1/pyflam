@@ -132,9 +132,9 @@ bug instead of silently skipping.
 - [x] Port `mf_sv_nn`, `mf_sv_nc`, `mf_sv_h`, and `mf_sv_p` behavior.
 - [x] Port `mf_cholmv`, `mf_cholsv`, and `mf_logdet` to use hierarchical factors.
 - [x] Add MATLAB parity for `mf2`, `mf3`, and `mfx`.
-- [ ] Add parity for real, complex, symmetric, Hermitian, positive-definite,
+- [x] Add parity for real, complex, symmetric, Hermitian, positive-definite,
       transpose solve, and adjoint solve cases.
-- [ ] Keep dense/SciPy sparse fallback only as an explicit debug fallback, not
+- [x] Keep dense/SciPy sparse fallback only as an explicit debug fallback, not
       the default implementation path.
 
 ## 8. Implement True HIFIE

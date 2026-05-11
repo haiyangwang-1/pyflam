@@ -577,6 +577,54 @@ class MatlabParityTests(unittest.TestCase):
         np.testing.assert_allclose(mf_cholsv(Fp, data["X"], trans="c"), data["Cpsvc"], rtol=1e-9, atol=1e-9)
         np.testing.assert_allclose(mf_logdet(Fp), data["ldp"].ravel()[0], rtol=1e-9, atol=1e-9)
 
+    def test_mfx_complex_and_symmetric_modes(self):
+        data = _run_flam_export(
+            "mfx_complex_symmetry",
+            """
+                    n = 4;
+                    x = linspace(0,1,n);
+                    A = diag([3+1i, 4-0.5i, 5+0.75i, 2.5+1.5i]);
+                    A = A + diag([1-2i, 1i, 2],1);
+                    A = A + diag([0.5+0.25i, -1+0.2i, 0.5-0.5i],-1);
+                    A = sparse(A);
+                    X = reshape((1:8)/17 + 1i*(9:16)/19,n,2);
+                    F = mfx(A,x,2,struct('symm','n'));
+                    Ymv = mf_mv(F,X);
+                    Ymvt = mf_mv(F,X,'t');
+                    Ymvc = mf_mv(F,X,'c');
+                    Ysv = mf_sv(F,X);
+                    Ysvt = mf_sv(F,X,'t');
+                    Ysvc = mf_sv(F,X,'c');
+                    ld = mf_logdet(F);
+
+                    As = spdiags([-ones(n,1) 3*ones(n,1) -ones(n,1)],[-1 0 1],n,n);
+                    Xs = reshape((0:(2*n-1))/(2*n+1),n,2);
+                    Fs = mfx(As,x,2,struct('symm','s'));
+                    Ysmv = mf_mv(Fs,Xs);
+                    Yssv = mf_sv(Fs,Xs);
+                    lds = mf_logdet(Fs);
+
+                    save('__OUT__','A','x','X','Ymv','Ymvt','Ymvc','Ysv','Ysvt','Ysvc','ld', ...
+                         'As','Xs','Ysmv','Yssv','lds');
+                    exit;
+            """,
+        )
+
+        F = mfx(data["A"], data["x"], occ=2)
+        np.testing.assert_allclose(mf_mv(F, data["X"]), data["Ymv"], rtol=1e-9, atol=1e-9)
+        np.testing.assert_allclose(mf_mv(F, data["X"], trans="t"), data["Ymvt"], rtol=1e-9, atol=1e-9)
+        np.testing.assert_allclose(mf_mv(F, data["X"], trans="c"), data["Ymvc"], rtol=1e-9, atol=1e-9)
+        np.testing.assert_allclose(mf_sv(F, data["X"]), data["Ysv"], rtol=1e-9, atol=1e-9)
+        np.testing.assert_allclose(mf_sv(F, data["X"], trans="t"), data["Ysvt"], rtol=1e-9, atol=1e-9)
+        np.testing.assert_allclose(mf_sv(F, data["X"], trans="c"), data["Ysvc"], rtol=1e-9, atol=1e-9)
+        self.assertLess(_logdet_mod_error(mf_logdet(F), data["ld"].ravel()[0]), 1e-9)
+
+        Fs = mfx(data["As"], data["x"], occ=2, opts={"symm": "s"})
+        self.assertEqual(Fs.symm, "n")
+        np.testing.assert_allclose(mf_mv(Fs, data["Xs"]), data["Ysmv"], rtol=1e-9, atol=1e-9)
+        np.testing.assert_allclose(mf_sv(Fs, data["Xs"]), data["Yssv"], rtol=1e-9, atol=1e-9)
+        np.testing.assert_allclose(mf_logdet(Fs), data["lds"].ravel()[0], rtol=1e-9, atol=1e-9)
+
     def test_hifde2_grid_operator(self):
         data = _run_flam_export(
             "hifde2_parity",

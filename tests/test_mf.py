@@ -131,6 +131,14 @@ class MultifontalTests(unittest.TestCase):
         np.testing.assert_allclose(mf_mv(F, x), A @ x, atol=1e-12)
         np.testing.assert_allclose(mf_sv(F, x), np.linalg.solve(A, x), atol=1e-12)
 
+    def test_mf_debug_dense_fallback_is_explicit(self):
+        A_sparse = _spd_grid2(4)
+        F = mf2(A_sparse, n=4, occ=2, opts={"debug_dense": True})
+
+        self.assertFalse(F.hierarchical)
+        self.assertIsNotNone(F.splu)
+        np.testing.assert_allclose(mf_mv(F, np.ones(9)), A_sparse @ np.ones(9))
+
 
 if __name__ == "__main__":
     unittest.main()
