@@ -252,7 +252,7 @@ def rskelf_mv(F: RSkelFFactor, X, trans: str = "n") -> np.ndarray:
     one_dim = X.ndim == 1
     if one_dim:
         X = X[:, None]
-    if _has_complete_compact_factor(F):
+    if _has_compact_factor(F):
         if F.symm == "n":
             Y = _rskelf_mv_nn(F, X, 3) if trans == "n" else _rskelf_mv_nc(F, X, 3)
         elif F.symm == "s":
@@ -276,7 +276,7 @@ def rskelf_sv(F: RSkelFFactor, X, trans: str = "n") -> np.ndarray:
     one_dim = X.ndim == 1
     if one_dim:
         X = X[:, None]
-    if _has_complete_compact_factor(F):
+    if _has_compact_factor(F):
         if F.symm == "n":
             Y = _rskelf_sv_nn(F, X, 3) if trans == "n" else _rskelf_sv_nc(F, X, 3)
         elif F.symm == "s":
@@ -331,7 +331,7 @@ def rskelf_cholmv(F: RSkelFFactor, X, trans: str = "n") -> np.ndarray:
     one_dim = X.ndim == 1
     if one_dim:
         X = X[:, None]
-    if _has_complete_compact_factor(F):
+    if _has_compact_factor(F):
         Y = _rskelf_cholmv_p(F, X, trans)
     elif trans == "n":
         Y = F.chol @ X
@@ -351,7 +351,7 @@ def rskelf_cholsv(F: RSkelFFactor, X, trans: str = "n") -> np.ndarray:
     one_dim = X.ndim == 1
     if one_dim:
         X = X[:, None]
-    if _has_complete_compact_factor(F):
+    if _has_compact_factor(F):
         Y = _rskelf_cholsv_p(F, X, trans)
     elif trans == "n":
         Y = la.solve_triangular(F.chol, X, lower=True)
@@ -385,8 +385,12 @@ def rskelf_spdiag(F: RSkelFFactor, dinv: bool | int = False) -> np.ndarray:
 
 
 def _require_positive_definite(F: RSkelFFactor, caller: str) -> None:
-    if F.symm != "p" or (F.chol is None and not _has_complete_compact_factor(F)):
+    if F.symm != "p" or (F.chol is None and not _has_compact_factor(F)):
         raise ValueError(f"{caller} requires a factorization built with opts={{'symm': 'p'}}")
+
+
+def _has_compact_factor(F: RSkelFFactor) -> bool:
+    return F.Si is not None
 
 
 def _has_complete_compact_factor(F: RSkelFFactor) -> bool:

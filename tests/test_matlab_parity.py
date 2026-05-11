@@ -190,6 +190,43 @@ class MatlabParityTests(unittest.TestCase):
         self.assertGreater(F.Si.size, 0)
         np.testing.assert_allclose(rskelf_logdet(F), data["ld"].ravel()[0], rtol=1e-9, atol=1e-9)
 
+    def test_rskelf_partial_apply_and_solve(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "partial_apply.mat"
+            script = Path(tmp) / "run_partial_apply.m"
+            script.write_text(
+                textwrap.dedent(
+                    f"""
+                    addpath(genpath('{str(FLAM_REF).replace("'", "''")}'));
+                    n = 18;
+                    x = linspace(0,1,n);
+                    A = @(i,j) 1./(1 + abs(reshape(x(i),[],1) - reshape(x(j),1,[]))) + 2*(i(:)==j(:)');
+                    X = reshape((0:35)/37,n,2);
+                    F = rskelf(A,x,3,1e-10,[],struct('symm','n','stop',1));
+                    Ymv = rskelf_mv(F,X);
+                    Ysv = rskelf_sv(F,X);
+                    Ad = A(1:n,1:n);
+                    save('{str(out).replace("'", "''")}','Ad','X','Ymv','Ysv');
+                    exit;
+                    """
+                )
+            )
+            subprocess.run(
+                [str(MATLAB), "-batch", f"run('{script.as_posix()}')"],
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                timeout=120,
+            )
+            data = scipy.io.loadmat(out)
+
+        x = np.linspace(0.0, 1.0, 18).reshape(1, -1)
+        F = rskelf(data["Ad"], x, 3, 1e-10, opts={"symm": "n", "stop": 1})
+        self.assertGreater(F.Si.size, 0)
+        np.testing.assert_allclose(rskelf_mv(F, data["X"]), data["Ymv"], rtol=1e-9, atol=1e-9)
+        np.testing.assert_allclose(rskelf_sv(F, data["X"]), data["Ysv"], rtol=1e-9, atol=1e-9)
+
     def test_rskel_apply_and_extended_sparse(self):
         with tempfile.TemporaryDirectory() as tmp:
             out = Path(tmp) / "rskel_parity.mat"
