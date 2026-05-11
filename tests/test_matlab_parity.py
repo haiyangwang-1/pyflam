@@ -51,6 +51,7 @@ from pyflam import (
     mf_diag,
     mf_logdet,
     mf_mv,
+    mf_spdiag,
     mf_sv,
     mfx,
     rskel,
@@ -536,6 +537,8 @@ class MatlabParityTests(unittest.TestCase):
                     ld = mf_logdet(F);
                     D = mf_diag(F);
                     Di = mf_diag(F,1);
+                    SD = mf_spdiag(F);
+                    SDi = mf_spdiag(F,1);
                     nlvl = F.nlvl;
                     lvp = F.lvp;
                     nf = length(F.factors);
@@ -545,7 +548,7 @@ class MatlabParityTests(unittest.TestCase):
                       sk_counts(k) = length(F.factors(k).sk);
                       rd_counts(k) = length(F.factors(k).rd);
                     end
-                    save('__OUT__','A','X','Ymv','Ysv','ld','D','Di', ...
+                    save('__OUT__','A','X','Ymv','Ysv','ld','D','Di','SD','SDi', ...
                          'nlvl','lvp','nf','sk_counts','rd_counts');
                     exit;
             """,
@@ -563,6 +566,8 @@ class MatlabParityTests(unittest.TestCase):
         np.testing.assert_allclose(mf_logdet(F), data["ld"].ravel()[0], rtol=1e-9, atol=1e-9)
         np.testing.assert_allclose(mf_diag(F), data["D"].ravel(), rtol=1e-9, atol=1e-9)
         np.testing.assert_allclose(mf_diag(F, True), data["Di"].ravel(), rtol=1e-9, atol=1e-9)
+        np.testing.assert_allclose(mf_spdiag(F), data["SD"].ravel(), rtol=1e-9, atol=1e-9)
+        np.testing.assert_allclose(mf_spdiag(F, True), data["SDi"].ravel(), rtol=1e-9, atol=1e-9)
 
     def test_mf2_sparse_singular_and_near_singular_modes(self):
         data = _run_flam_export(

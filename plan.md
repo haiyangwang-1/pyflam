@@ -178,7 +178,7 @@ bug instead of silently skipping.
 - [x] Port `rskelf/spdiag/*` selected-inversion algorithms.
 - [x] Replace correctness-first `rskelf_diag` identity-RHS extraction with the
       selected-inversion implementation.
-- [ ] Port `mf/spdiag/*` selected-inversion algorithms.
+- [x] Port `mf/spdiag/*` selected-inversion algorithms.
 - [x] Replace correctness-first `mf_diag` identity-RHS extraction.
 - [ ] Port `hifie/spdiag/*` selected-inversion algorithms.
 - [x] Replace correctness-first `hifie_diag`.

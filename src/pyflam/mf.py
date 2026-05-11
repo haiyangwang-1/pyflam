@@ -230,7 +230,104 @@ def mf_diag(F: MFFactor, dinv: bool | int = False, opts: dict[str, Any] | None =
 def mf_spdiag(F: MFFactor, dinv: bool | int = False) -> np.ndarray:
     """Sparse-style diagonal extraction wrapper."""
 
+    if F.hierarchical:
+        return _mf_spdiag_sparse(F, bool(dinv))
     return mf_diag(F, dinv)
+
+
+def _mf_spdiag_sparse(F: MFFactor, dinv: bool) -> np.ndarray:
+    spinfo_i, spinfo_t = _mf_spdiag_info(F)
+    D = np.zeros(F.N, dtype=_factor_dtype(F))
+    P = -np.ones(F.N, dtype=np.int64)
+    for row_idx in range(spinfo_i.size - 1, -1, -1):
+        factor_ids = spinfo_t[row_idx]
+        if not factor_ids:
+            continue
+        active = _concat_unique(
+            [F.factors[int(j)].sk for j in factor_ids] + [F.factors[int(j)].rd for j in factor_ids]
+        )
+        if active.size == 0:
+            continue
+        P[active] = np.arange(active.size, dtype=np.int64)
+
+        leaf = F.factors[int(spinfo_i[row_idx])]
+        slf = np.concatenate((leaf.sk, leaf.rd))
+        if slf.size == 0:
+            continue
+        local_factors = [_localize_mf_block(F.factors[int(j)], P) for j in factor_ids]
+        local = MFFactor(
+            N=active.size,
+            nlvl=1,
+            lvp=np.array([0, len(local_factors)], dtype=np.int64),
+            factors=local_factors,
+            symm=F.symm,
+            hierarchical=True,
+            opts=dict(F.opts),
+        )
+        Y = np.zeros((active.size, slf.size), dtype=D.dtype)
+        Y[P[slf], :] = np.eye(slf.size, dtype=D.dtype)
+        Y = mf_sv(local, Y) if dinv else mf_mv(local, Y)
+        D[slf] = np.diag(Y[P[slf], :])
+    return D
+
+
+def _mf_spdiag_info(F: MFFactor) -> tuple[np.ndarray, list[list[int]]]:
+    n = int(F.lvp[-1])
+    sp_t: list[set[int]] = [set() for _ in range(n)]
+    nbor: list[set[int]] = [set() for _ in range(n)]
+    prnt: list[set[int]] = [set() for _ in range(n)]
+    x: list[set[int]] = [set() for _ in range(F.N)]
+    rem = np.ones(F.N, dtype=bool)
+
+    for lvl in range(F.nlvl):
+        x_prev = [set(v) for v in x]
+        x = [set() for _ in range(F.N)]
+        for factor_idx in range(int(F.lvp[lvl]), int(F.lvp[lvl + 1])):
+            f = F.factors[factor_idx]
+            slf = np.concatenate((f.sk, f.rd))
+            if lvl == 0:
+                nbr = set().union(*(x[int(j)] for j in slf)) if slf.size else set()
+                for j in nbr:
+                    nbor[factor_idx].add(j)
+                    nbor[j].add(factor_idx)
+            else:
+                chld = set().union(*(x_prev[int(j)] for j in slf)) if slf.size else set()
+                for j in chld:
+                    prnt[j].add(factor_idx)
+            for j in slf:
+                x[int(j)].add(factor_idx)
+            if f.rd.size:
+                rem[f.rd] = False
+        if lvl > 0:
+            for idx in np.flatnonzero(rem):
+                if not x[int(idx)]:
+                    x[int(idx)] = set(x_prev[int(idx)])
+
+    leaf_for_index = -np.ones(F.N, dtype=np.int64)
+    for factor_idx in range(n - 1, -1, -1):
+        inherited = set()
+        for parent in prnt[factor_idx]:
+            inherited.update(sp_t[parent])
+        sp_t[factor_idx] = {factor_idx} | nbor[factor_idx] | inherited
+        f = F.factors[factor_idx]
+        slf = np.concatenate((f.sk, f.rd))
+        if slf.size:
+            leaf_for_index[slf] = factor_idx
+
+    leaves = np.unique(leaf_for_index[leaf_for_index >= 0])
+    return leaves.astype(np.int64), [sorted(sp_t[int(i)]) for i in leaves]
+
+
+def _localize_mf_block(f: MFFactorBlock, P: np.ndarray) -> MFFactorBlock:
+    return MFFactorBlock(
+        sk=P[f.sk],
+        rd=P[f.rd],
+        L=f.L,
+        U=f.U,
+        p=f.p,
+        E=f.E,
+        F=f.F,
+    )
 
 
 def _mf_diag_unfold(F: MFFactor, dinv: bool) -> np.ndarray:

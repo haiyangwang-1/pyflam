@@ -108,6 +108,23 @@ class MultifontalTests(unittest.TestCase):
         finally:
             mf_mod.mf_sv = old_sv
 
+    def test_mf_spdiag_uses_sparse_propagation_for_hierarchical_factors(self):
+        A_sparse = _spd_tridiag(5)
+        A = A_sparse.toarray()
+        x = np.linspace(0.0, 1.0, A.shape[0]).reshape(1, -1)
+        F = mfx(A_sparse, x, occ=2)
+        old_diag = mf_mod.mf_diag
+
+        def blocked(*args, **kwargs):
+            raise AssertionError("matrix unfolding fallback was used")
+
+        try:
+            mf_mod.mf_diag = blocked
+            np.testing.assert_allclose(mf_mod.mf_spdiag(F), np.diag(A))
+            np.testing.assert_allclose(mf_mod.mf_spdiag(F, True), np.diag(np.linalg.inv(A)))
+        finally:
+            mf_mod.mf_diag = old_diag
+
     def test_mfx_complex_sparse_transpose_solves_and_logdet(self):
         A = np.diag(np.array([3.0 + 1.0j, 4.0 - 0.5j, 5.0 + 0.75j, 2.5 + 1.5j]))
         A += np.diag(np.array([1.0 - 2.0j, 1.0j, 2.0]), 1)
