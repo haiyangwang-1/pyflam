@@ -293,6 +293,29 @@ class DenseAlgorithmTests(unittest.TestCase):
         np.testing.assert_allclose(rskelf_diag(F, True), np.diag(rskelf_sv(F, eye)), rtol=1e-9, atol=1e-9)
         self.assertGreater(np.linalg.norm(rskelf_diag(F) - np.diag(A)), 1.0)
 
+    def test_degenerate_points_end_to_end(self):
+        x = np.array([0.0, 0.0, 0.0, 0.4, 0.4, 0.8, 1.0, 1.0]).reshape(1, -1)
+        A = kernel_matrix(x.ravel(), x.ravel()) + 3.0 * np.eye(x.shape[1])
+        X = np.arange(16.0).reshape(8, 2) / 13.0
+
+        F = rskelf(A, x, occ=2, rank_or_tol=1e-10)
+        np.testing.assert_allclose(rskelf_mv(F, X), A @ X, rtol=1e-9, atol=1e-9)
+        np.testing.assert_allclose(rskelf_sv(F, X), np.linalg.solve(A, X), rtol=1e-9, atol=1e-9)
+
+        rx = np.array([0.0, 0.0, 0.2, 0.2, 0.8, 1.0, 1.0])
+        cx = np.array([0.0, 0.1, 0.1, 0.8, 0.8, 1.0])
+        B = kernel_matrix(rx, cx)
+        V = np.arange(12.0).reshape(6, 2) / 17.0
+        W = np.arange(14.0).reshape(7, 2) / 19.0
+
+        G = rskel(B, rx.reshape(1, -1), cx.reshape(1, -1), occ=2, rank_or_tol=1e-10)
+        np.testing.assert_allclose(rskel_mv(G, V), B @ V, rtol=1e-9, atol=1e-9)
+        np.testing.assert_allclose(rskel_mv(G, W, trans="c"), B.T @ W, rtol=1e-9, atol=1e-9)
+
+        H = ifmm(B, rx.reshape(1, -1), cx.reshape(1, -1), occ=2, rank_or_tol=1e-10, opts={"store": "a", "near": 1})
+        np.testing.assert_allclose(ifmm_mv(H, V), B @ V, rtol=1e-9, atol=1e-9)
+        np.testing.assert_allclose(ifmm_mv(H, W, trans="c"), B.T @ W, rtol=1e-9, atol=1e-9)
+
 
 if __name__ == "__main__":
     unittest.main()
