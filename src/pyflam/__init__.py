@@ -63,6 +63,8 @@ from .mf import (
     mf_sv,
     mfx,
 )
+from .misc import gausspdf, lsedc
+from .quad import glegquad, gqgw, quad_sqtri3
 from .rskel import RSkelFactor, rskel, rskel_mv, rskel_xsp
 from .rskelf import (
     RSkelFFactor,
@@ -92,6 +94,9 @@ __all__ = [
     "chktrans",
     "chksymm",
     "detperm",
+    "gausspdf",
+    "glegquad",
+    "gqgw",
     "hifde2",
     "hifde2x",
     "hifde3",
@@ -121,6 +126,7 @@ __all__ = [
     "ifmm_mv",
     "ismemb",
     "logdet_ldl",
+    "lsedc",
     "mf2",
     "mf3",
     "mf_cholmv",
@@ -131,6 +137,7 @@ __all__ = [
     "mf_spdiag",
     "mf_sv",
     "mfx",
+    "quad_sqtri3",
     "rskel",
     "rskel_mv",
     "rskel_xsp",
