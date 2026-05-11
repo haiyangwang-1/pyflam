@@ -98,7 +98,7 @@ bug instead of silently skipping.
 
 - [x] Add MATLAB parity for every `store` mode: `'n'`, `'s'`, `'r'`, and `'a'`.
 - [x] Add MATLAB parity for `near=0` and `near=1`.
-- [ ] Add MATLAB parity for `symm='n'`, `'s'`, `'h'`, and `'p'` where supported.
+- [x] Add MATLAB parity for `symm='n'`, `'s'`, `'h'`, and `'p'` where supported.
 - [ ] Add proxy callback parity.
 - [ ] Add rectangular complex matrix parity.
 - [ ] Verify `ifmm_mv` for `trans='n'`, `'t'`, and `'c'`.
