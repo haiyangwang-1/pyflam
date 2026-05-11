@@ -8,7 +8,17 @@ from pathlib import Path
 import numpy as np
 import scipy.io
 
-from pyflam import id, ifmm, ifmm_mv, rskelf, rskelf_logdet, rskelf_mv, rskelf_sv
+from pyflam import (
+    hypoct,
+    hypoct_perm,
+    id,
+    ifmm,
+    ifmm_mv,
+    rskelf,
+    rskelf_logdet,
+    rskelf_mv,
+    rskelf_sv,
+)
 
 
 MATLAB = Path(r"C:\Program Files\MATLAB\R2026a\bin\matlab.exe")
@@ -23,6 +33,53 @@ FLAM_REF = Path(os.environ.get("FLAM_REFERENCE", _DEFAULT_FLAM_REF))
     "set PYFLAM_RUN_MATLAB_PARITY=1 with MATLAB and FLAM reference available",
 )
 class MatlabParityTests(unittest.TestCase):
+    def test_hypoct_layout_and_permutation(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "hypoct_parity.mat"
+            script = Path(tmp) / "run_hypoct_parity.m"
+            script.write_text(
+                textwrap.dedent(
+                    f"""
+                    addpath(genpath('{str(FLAM_REF).replace("'", "''")}'));
+                    x = [0.1 0.2 0.9 0.8 0.45 0.55 0.12 0.88;
+                         0.1 0.85 0.2 0.75 0.52 0.48 0.9 0.05];
+                    t = hypoct(x,2,Inf,[]);
+                    p = hypoct_perm(t);
+                    leaf_counts = zeros(1,length(t.nodes));
+                    nbor_counts = zeros(1,length(t.nodes));
+                    chld_counts = zeros(1,length(t.nodes));
+                    for k = 1:length(t.nodes)
+                      leaf_counts(k) = length(t.nodes(k).xi);
+                      nbor_counts(k) = length(t.nodes(k).nbor);
+                      chld_counts(k) = length(t.nodes(k).chld);
+                    end
+                    nlvl = t.nlvl;
+                    lvp = t.lvp;
+                    l = t.l;
+                    save('{str(out).replace("'", "''")}','x','p','nlvl','lvp','l','leaf_counts','nbor_counts','chld_counts');
+                    exit;
+                    """
+                )
+            )
+            subprocess.run(
+                [str(MATLAB), "-batch", f"run('{script.as_posix()}')"],
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                timeout=120,
+            )
+            data = scipy.io.loadmat(out)
+
+        tree = hypoct(data["x"], 2)
+        np.testing.assert_array_equal(hypoct_perm(tree), data["p"].ravel().astype(np.int64) - 1)
+        self.assertEqual(tree.nlvl, int(data["nlvl"].ravel()[0]))
+        np.testing.assert_array_equal(tree.lvp, data["lvp"].ravel().astype(np.int64))
+        np.testing.assert_allclose(tree.l, data["l"])
+        np.testing.assert_array_equal([node.xi.size for node in tree.nodes], data["leaf_counts"].ravel())
+        np.testing.assert_array_equal([len(node.nbor) for node in tree.nodes], data["nbor_counts"].ravel())
+        np.testing.assert_array_equal([len(node.chld) for node in tree.nodes], data["chld_counts"].ravel())
+
     def test_id_fixed_columns(self):
         with tempfile.TemporaryDirectory() as tmp:
             out = Path(tmp) / "id_parity.mat"
