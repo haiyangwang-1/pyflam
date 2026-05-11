@@ -14,6 +14,9 @@ from pyflam import (
     id,
     ifmm,
     ifmm_mv,
+    rskel,
+    rskel_mv,
+    rskel_xsp,
     rskelf,
     rskelf_logdet,
     rskelf_mv,
@@ -186,6 +189,65 @@ class MatlabParityTests(unittest.TestCase):
         F = rskelf(data["Ad"], x, 3, 1e-10, opts={"symm": "n", "stop": 1})
         self.assertGreater(F.Si.size, 0)
         np.testing.assert_allclose(rskelf_logdet(F), data["ld"].ravel()[0], rtol=1e-9, atol=1e-9)
+
+    def test_rskel_apply_and_extended_sparse(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "rskel_parity.mat"
+            script = Path(tmp) / "run_rskel_parity.m"
+            script.write_text(
+                textwrap.dedent(
+                    f"""
+                    addpath(genpath('{str(FLAM_REF).replace("'", "''")}'));
+                    n = 9;
+                    rx = linspace(0,1,n);
+                    cx = linspace(0.05,0.95,n-1);
+                    A = @(i,j) 1./(1 + abs(reshape(rx(i),[],1) - reshape(cx(j),1,[])));
+                    X = reshape((0:15)/17,n-1,2);
+                    Z = reshape((0:17)/19,n,2);
+                    F = rskel(A,rx,cx,3,1e-10,[],struct('symm','n'));
+                    Ymv = rskel_mv(F,X);
+                    Yadj = rskel_mv(F,Z,'c');
+                    [S,p,q] = rskel_xsp(F);
+                    P = F.P;
+                    Q = F.Q;
+                    lvpd = F.lvpd;
+                    lvpu = F.lvpu;
+                    nd = length(F.D);
+                    nu = length(F.U);
+                    Ad = A(1:n,1:n-1);
+                    save('{str(out).replace("'", "''")}','Ad','X','Z','Ymv','Yadj','P','Q','lvpd','lvpu','nd','nu','S','p','q');
+                    exit;
+                    """
+                )
+            )
+            subprocess.run(
+                [str(MATLAB), "-batch", f"run('{script.as_posix()}')"],
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                timeout=120,
+            )
+            data = scipy.io.loadmat(out)
+
+        rx = np.linspace(0.0, 1.0, 9).reshape(1, -1)
+        cx = np.linspace(0.05, 0.95, 8).reshape(1, -1)
+        F = rskel(data["Ad"], rx, cx, 3, 1e-10)
+        S, p, q = rskel_xsp(F)
+
+        np.testing.assert_array_equal(F.P, data["P"].ravel().astype(np.int64) - 1)
+        np.testing.assert_array_equal(F.Q, data["Q"].ravel().astype(np.int64) - 1)
+        np.testing.assert_array_equal(F.lvpd, data["lvpd"].ravel().astype(np.int64))
+        np.testing.assert_array_equal(F.lvpu, data["lvpu"].ravel().astype(np.int64))
+        self.assertEqual(len(F.D), int(data["nd"].ravel()[0]))
+        self.assertEqual(len(F.U), int(data["nu"].ravel()[0]))
+        np.testing.assert_allclose(rskel_mv(F, data["X"]), data["Ymv"], rtol=1e-9, atol=1e-9)
+        np.testing.assert_allclose(rskel_mv(F, data["Z"], trans="c"), data["Yadj"], rtol=1e-9, atol=1e-9)
+        self.assertEqual(S.shape, data["S"].shape)
+        self.assertEqual(S.nnz, data["S"].nnz)
+        np.testing.assert_allclose((S - data["S"]).toarray(), 0, rtol=1e-9, atol=1e-9)
+        np.testing.assert_array_equal(p, data["p"].ravel().astype(np.int64) - 1)
+        np.testing.assert_array_equal(q, data["q"].ravel().astype(np.int64) - 1)
 
     def test_ifmm_small_apply_and_adjoint(self):
         with tempfile.TemporaryDirectory() as tmp:
