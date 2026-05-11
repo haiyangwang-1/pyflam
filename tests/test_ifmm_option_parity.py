@@ -275,6 +275,52 @@ class IFMMOptionParityTests(unittest.TestCase):
         np.testing.assert_allclose(ifmm_mv(F, data["X"], Afun), data["Ymv"], rtol=1e-9, atol=1e-9)
         np.testing.assert_allclose(ifmm_mv(F, data["Z"], Afun, trans="c"), data["Yadj"], rtol=1e-9, atol=1e-9)
 
+    def test_rectangular_complex_matches_matlab(self):
+        data = run_matlab_export(
+            "ifmm_complex_rect",
+            textwrap.dedent(
+                f"""
+                addpath(genpath('{str(FLAM_REF).replace("'", "''")}'));
+                m = 13;
+                n = 9;
+                rx = linspace(0,1,m);
+                cx = linspace(0.04,0.94,n);
+                row = reshape(rx,[],1);
+                col = reshape(cx,1,[]);
+                dx = row - col;
+                Ad = 1./(1 + abs(dx)) + 0.03i*(row + 2*col);
+                X = reshape(sin((1:(2*n))/17), n, 2) ...
+                    + 1i*reshape(cos((1:(2*n))/19), n, 2);
+                Z = reshape(cos((1:(2*m))/23), m, 2) ...
+                    + 1i*reshape(sin((1:(2*m))/29), m, 2);
+                F = ifmm(Ad,rx,cx,3,1e-10,[],struct('store','a','near',1,'symm','n'));
+                Ymv = ifmm_mv(F,X);
+                Yadj = ifmm_mv(F,Z,[],'c');
+                P = F.P;
+                Q = F.Q;
+                lvpb = F.lvpb;
+                lvpu = F.lvpu;
+                nb = length(F.B);
+                nu = length(F.U);
+                save('__OUT__','Ad','X','Z','Ymv','Yadj','P','Q','lvpb','lvpu','nb','nu');
+                exit;
+                """
+            ),
+        )
+
+        rx = np.linspace(0.0, 1.0, 13).reshape(1, -1)
+        cx = np.linspace(0.04, 0.94, 9).reshape(1, -1)
+        F = ifmm(data["Ad"], rx, cx, occ=3, rank_or_tol=1e-10, opts={"store": "a", "near": 1, "symm": "n"})
+
+        np.testing.assert_array_equal(F.P, data["P"].ravel().astype(np.int64) - 1)
+        np.testing.assert_array_equal(F.Q, data["Q"].ravel().astype(np.int64) - 1)
+        np.testing.assert_array_equal(F.lvpb, data["lvpb"].ravel().astype(np.int64))
+        np.testing.assert_array_equal(F.lvpu, data["lvpu"].ravel().astype(np.int64))
+        self.assertEqual(len(F.B), int(data["nb"].ravel()[0]))
+        self.assertEqual(len(F.U), int(data["nu"].ravel()[0]))
+        np.testing.assert_allclose(ifmm_mv(F, data["X"]), data["Ymv"], rtol=1e-9, atol=1e-9)
+        np.testing.assert_allclose(ifmm_mv(F, data["Z"], trans="c"), data["Yadj"], rtol=1e-9, atol=1e-9)
+
 
 if __name__ == "__main__":
     unittest.main()

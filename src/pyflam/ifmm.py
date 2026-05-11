@@ -146,7 +146,7 @@ def ifmm(A, rx, cx, occ, rank_or_tol, pxyfun=None, opts=None) -> IFMMFactor:
             Kpxy, cnbr = _proxy_with_neighbors(pxyfun, "r", rx, cx, rslf, cdir, node_size, node.ctr)
             if cnbr is None:
                 cnbr = np.setdiff1d(np.flatnonzero(crem), cslf, assume_unique=False)
-            K = _hstack_blocks(_eval_block(A, rslf, cnbr), Kpxy).T
+            K = _hstack_blocks(_eval_block(A, rslf, cnbr), Kpxy).conj().T
             rsk, rrd, rT = id(K, rank_or_tol, o["Tmax"], o["rrqr_iter"])
 
             if o["symm"] == "n":
@@ -239,7 +239,7 @@ def ifmm(A, rx, cx, occ, rank_or_tol, pxyfun=None, opts=None) -> IFMMFactor:
                     Krow = _proxy_matrix(pxyfun, "r", rx, cx, rslf, cnbr, node_size, node.ctr)
             else:
                 Krow = np.zeros((rslf.size, 0))
-            rsk, rrd, rT = id(np.asarray(Krow).T, rank_or_tol, o["Tmax"], o["rrqr_iter"])
+            rsk, rrd, rT = id(np.asarray(Krow).conj().T, rank_or_tol, o["Tmax"], o["rrqr_iter"])
 
             if o["symm"] == "n":
                 if lvl > 1:

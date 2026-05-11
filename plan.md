@@ -100,7 +100,7 @@ bug instead of silently skipping.
 - [x] Add MATLAB parity for `near=0` and `near=1`.
 - [x] Add MATLAB parity for `symm='n'`, `'s'`, `'h'`, and `'p'` where supported.
 - [x] Add proxy callback parity.
-- [ ] Add rectangular complex matrix parity.
+- [x] Add rectangular complex matrix parity.
 - [ ] Verify `ifmm_mv` for `trans='n'`, `'t'`, and `'c'`.
 - [ ] Verify behavior when missing interactions must be supplied through `A`.
 - [ ] Cover representative upstream tests under `FLAM/ifmm/test`.
