@@ -35,6 +35,7 @@ from pyflam import (
     mf_logdet,
     mf_mv,
     mf_sv,
+    mfx,
     rskel,
     rskel_mv,
     rskel_xsp,
@@ -471,6 +472,49 @@ class MatlabParityTests(unittest.TestCase):
         np.testing.assert_array_equal([f.rd.size for f in F.factors], data["rd_counts"].ravel().astype(np.int64))
         np.testing.assert_allclose(mf_mv(F, data["X"]), data["Ymv"], rtol=1e-9, atol=1e-9)
         np.testing.assert_allclose(mf_sv(F, data["X"]), data["Ysv"], rtol=1e-9, atol=1e-9)
+        np.testing.assert_allclose(mf_logdet(F), data["ld"].ravel()[0], rtol=1e-9, atol=1e-9)
+
+    def test_mfx_line_operator(self):
+        data = _run_flam_export(
+            "mfx_line_parity",
+            """
+                    n = 5;
+                    e = ones(n,1);
+                    A = spdiags([-e 3*e -e],[-1 0 1],n,n);
+                    x = linspace(0,1,n);
+                    X = reshape((0:(2*n-1))/(2*n+1),n,2);
+                    F = mfx(A,x,2,struct('symm','n'));
+                    Ymv = mf_mv(F,X);
+                    Yadj = mf_mv(F,X,'c');
+                    Ysv = mf_sv(F,X);
+                    Ysad = mf_sv(F,X,'c');
+                    ld = mf_logdet(F);
+                    nlvl = F.nlvl;
+                    lvp = F.lvp;
+                    nf = length(F.factors);
+                    sk_counts = zeros(1,nf);
+                    rd_counts = zeros(1,nf);
+                    for k = 1:nf
+                      sk_counts(k) = length(F.factors(k).sk);
+                      rd_counts(k) = length(F.factors(k).rd);
+                    end
+                    save('__OUT__','A','x','X','Ymv','Yadj','Ysv','Ysad','ld', ...
+                         'nlvl','lvp','nf','sk_counts','rd_counts');
+                    exit;
+            """,
+        )
+
+        F = mfx(data["A"], data["x"], occ=2)
+        self.assertTrue(F.hierarchical)
+        self.assertEqual(F.nlvl, int(data["nlvl"].ravel()[0]))
+        np.testing.assert_array_equal(F.lvp, data["lvp"].ravel().astype(np.int64))
+        self.assertEqual(len(F.factors), int(data["nf"].ravel()[0]))
+        np.testing.assert_array_equal([f.sk.size for f in F.factors], data["sk_counts"].ravel().astype(np.int64))
+        np.testing.assert_array_equal([f.rd.size for f in F.factors], data["rd_counts"].ravel().astype(np.int64))
+        np.testing.assert_allclose(mf_mv(F, data["X"]), data["Ymv"], rtol=1e-9, atol=1e-9)
+        np.testing.assert_allclose(mf_mv(F, data["X"], trans="c"), data["Yadj"], rtol=1e-9, atol=1e-9)
+        np.testing.assert_allclose(mf_sv(F, data["X"]), data["Ysv"], rtol=1e-9, atol=1e-9)
+        np.testing.assert_allclose(mf_sv(F, data["X"], trans="c"), data["Ysad"], rtol=1e-9, atol=1e-9)
         np.testing.assert_allclose(mf_logdet(F), data["ld"].ravel()[0], rtol=1e-9, atol=1e-9)
 
     def test_hifde2_grid_operator(self):

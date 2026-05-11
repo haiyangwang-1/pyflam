@@ -61,7 +61,7 @@ def mfx(A, x, occ, opts: dict[str, Any] | None = None) -> MFFactor:
     if occ <= 0:
         raise ValueError("leaf occupancy must be positive")
     tree = hypoct(x, occ, o["lvlmax"], o["ext"])
-    return _make_factor(A, N, o, tree=tree)
+    return _mfx_hierarchical(A, N, o, tree)
 
 
 def mf2(A, n: int, occ: int, opts: dict[str, Any] | None = None) -> MFFactor:
@@ -630,6 +630,134 @@ def _mf3_hierarchical(A, n: int, occ: int, opts: dict[str, Any]) -> MFFactor:
     )
 
 
+def _mfx_hierarchical(A, N: int, opts: dict[str, Any], tree: Any) -> MFFactor:
+    A0 = _as_square_sparse_matrix(A, N)
+    A_work = A0.copy().tocsc()
+    factors: list[MFFactorBlock] = []
+    lvp = [0]
+    rem = np.ones(N, dtype=bool)
+
+    for lvl in range(tree.nlvl - 1, -1, -1):
+        upd_i: list[np.ndarray] = []
+        upd_j: list[np.ndarray] = []
+        upd_v: list[np.ndarray] = []
+        A_trans = A_work.T.tocsc() if opts["symm"] == "n" else None
+
+        for node_idx in range(tree.lvp[lvl], tree.lvp[lvl + 1]):
+            node = tree.nodes[node_idx]
+            child_xi = _concat_unique([tree.nodes[ch].xi for ch in node.chld])
+            if child_xi.size:
+                node.xi = np.unique(np.concatenate((node.xi, child_xi)))
+
+        for node_idx in range(tree.lvp[lvl], tree.lvp[lvl + 1]):
+            node = tree.nodes[node_idx]
+            slf = np.asarray(node.xi, dtype=np.int64).copy()
+            if slf.size == 0:
+                continue
+            sslf = np.sort(slf)
+
+            I_ext, J_ext = _external_column_interactions(A_work, slf, sslf)
+            if opts["symm"] == "n":
+                Ic, Jc = _external_column_interactions(A_trans, slf, sslf)
+                if J_ext.size or Jc.size:
+                    I_ext = np.concatenate((I_ext, Ic))
+                    J_ext = np.concatenate((J_ext, Jc))
+                    order = np.argsort(J_ext, kind="stable")
+                    I_ext = I_ext[order]
+                    J_ext = J_ext[order]
+            sk_pos = np.unique(J_ext)
+
+            nbr = [idx for idx in node.nbor if idx < node_idx]
+            if nbr:
+                nbr_xi = _concat_unique([tree.nodes[idx].xi for idx in nbr])
+                if nbr_xi.size and sk_pos.size:
+                    keep = np.ones(sk_pos.size, dtype=bool)
+                    nbrsk_parts = []
+                    for pos_idx, col in enumerate(sk_pos):
+                        segment = J_ext == col
+                        if segment.any() and np.all(np.isin(I_ext[segment], nbr_xi)):
+                            keep[pos_idx] = False
+                            nbrsk_parts.append(I_ext[segment])
+                    nbrsk = _concat_unique(nbrsk_parts)
+                    sk_pos = np.concatenate((sk_pos[keep], slf.size + np.arange(nbrsk.size, dtype=np.int64)))
+                    slf = np.concatenate((slf, nbrsk))
+
+            if sk_pos.size:
+                node.xi = slf[sk_pos]
+            else:
+                node.xi = np.array([], dtype=np.int64)
+            rd_pos = np.setdiff1d(np.arange(slf.size, dtype=np.int64), np.sort(sk_pos), assume_unique=False)
+            if rd_pos.size == 0:
+                continue
+            rem[slf[rd_pos]] = False
+
+            K = _spget_dense(A_work, slf, slf)
+            Krr = K[np.ix_(rd_pos, rd_pos)]
+            Ksr = K[np.ix_(sk_pos, rd_pos)]
+            Krs = K[np.ix_(rd_pos, sk_pos)]
+
+            Ufac = None
+            p = None
+            G = None
+            if opts["symm"] == "p":
+                L = np.linalg.cholesky(Krr)
+                E = _triangular_solve(L, Ksr.T, lower=True).T
+                X = -E @ E.conj().T
+            elif opts["symm"] == "h":
+                Lraw, D, perm = la.ldl(Krr, lower=True, hermitian=True, check_finite=False)
+                perm = np.asarray(perm, dtype=np.int64)
+                rd_pos = rd_pos[perm]
+                Ksr = K[np.ix_(sk_pos, rd_pos)]
+                L = Lraw[perm, :]
+                Ufac = D
+                E = _triangular_solve(L, Ksr.conj().T, lower=True, unit_diagonal=True).conj().T
+                E = la.solve(D, E.T, check_finite=False).T
+                X = -E @ (D @ E.conj().T)
+            else:
+                lu = _lu_factor_allow_singular(Krr)
+                L, Ufac, p = _lu_block(lu, rd_pos.size)
+                E = _triangular_solve(Ufac.T, Ksr.T, lower=True).T
+                G = _triangular_solve(L, Krs[p, :], lower=True, unit_diagonal=True)
+                X = -E @ G
+
+            sk = slf[sk_pos]
+            rd = slf[rd_pos]
+            if sk.size:
+                rows, cols = np.meshgrid(sk, sk, indexing="ij")
+                upd_i.append(rows.ravel())
+                upd_j.append(cols.ravel())
+                upd_v.append(X.ravel())
+            factors.append(MFFactorBlock(sk=sk, rd=rd, L=L, U=Ufac, p=p, E=E, F=G))
+
+        lvp.append(len(factors))
+        coo = A_work.tocoo()
+        keep = rem[coo.row] & rem[coo.col]
+        if keep.any():
+            upd_i.append(coo.row[keep])
+            upd_j.append(coo.col[keep])
+            upd_v.append(coo.data[keep])
+        if upd_i:
+            rows = np.concatenate(upd_i)
+            cols = np.concatenate(upd_j)
+            vals = np.concatenate(upd_v)
+            A_work = sp.csc_matrix((vals, (rows, cols)), shape=(N, N))
+        else:
+            A_work = sp.csc_matrix((N, N), dtype=A0.dtype)
+
+    return MFFactor(
+        N=N,
+        nlvl=tree.nlvl,
+        lvp=np.asarray(lvp, dtype=np.int64),
+        factors=factors,
+        symm=opts["symm"],
+        A=A,
+        A_sparse=A0,
+        hierarchical=True,
+        tree=tree,
+        opts=dict(opts),
+    )
+
+
 def _make_factor(A, N: int, opts: dict[str, Any], tree: Any = None) -> MFFactor:
     if N < 0:
         raise ValueError("matrix dimension must be nonnegative")
@@ -730,6 +858,25 @@ def _spget_dense(A: sp.spmatrix, rows: np.ndarray, cols: np.ndarray) -> np.ndarr
     if rows.size == 0 or cols.size == 0:
         return np.zeros((rows.size, cols.size), dtype=A.dtype)
     return np.asarray(A[np.ix_(rows, cols)].toarray())
+
+
+def _external_column_interactions(
+    A: sp.spmatrix,
+    slf: np.ndarray,
+    sorted_slf: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray]:
+    sub = A[:, slf].tocoo()
+    if sub.nnz == 0:
+        return np.array([], dtype=np.int64), np.array([], dtype=np.int64)
+    external = ~np.isin(sub.row, sorted_slf, assume_unique=False)
+    return sub.row[external].astype(np.int64), sub.col[external].astype(np.int64)
+
+
+def _concat_unique(parts: list[np.ndarray]) -> np.ndarray:
+    arrays = [np.asarray(part, dtype=np.int64).reshape(-1) for part in parts if np.asarray(part).size]
+    if not arrays:
+        return np.array([], dtype=np.int64)
+    return np.unique(np.concatenate(arrays))
 
 
 def _triangular_solve(

@@ -126,8 +126,8 @@ bug instead of silently skipping.
 - [x] Replace correctness-first dense/SciPy sparse LU backend with FLAM
       hierarchical multifrontal construction for `mf2`.
 - [x] Implement true `mf3`.
-- [ ] Implement true point-cloud `mfx`.
-- [ ] Port factor block layout and level pointers to match MATLAB FLAM.
+- [x] Implement true point-cloud `mfx`.
+- [x] Port factor block layout and level pointers to match MATLAB FLAM.
 - [ ] Port `mf_mv_nn`, `mf_mv_nc`, `mf_mv_h`, and `mf_mv_p` behavior.
 - [ ] Port `mf_sv_nn`, `mf_sv_nc`, `mf_sv_h`, and `mf_sv_p` behavior.
 - [ ] Port `mf_cholmv`, `mf_cholsv`, and `mf_logdet` to use hierarchical factors.
