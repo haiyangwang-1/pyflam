@@ -85,7 +85,7 @@ bug instead of silently skipping.
 - [x] Add MATLAB parity for unsymmetric `rskel` with callback matrix access.
 - [x] Add MATLAB parity for `symm='s'`.
 - [x] Add MATLAB parity for `symm='h'`.
-- [ ] Add MATLAB parity for `symm='p'` and confirm MATLAB semantics map to the
+- [x] Add MATLAB parity for `symm='p'` and confirm MATLAB semantics map to the
       Python factor mode.
 - [ ] Add complex rectangular cases.
 - [ ] Add proxy-callback parity for row and column proxy paths.

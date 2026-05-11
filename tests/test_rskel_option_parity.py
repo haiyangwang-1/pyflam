@@ -163,6 +163,49 @@ class RSkelOptionParityTests(unittest.TestCase):
         np.testing.assert_allclose(rskel_mv(F, data["X"]), data["Ymv"], rtol=1e-9, atol=1e-9)
         np.testing.assert_allclose(rskel_mv(F, data["Z"], trans="c"), data["Yadj"], rtol=1e-9, atol=1e-9)
 
+    def test_positive_definite_mode_maps_to_hermitian_and_matches_matlab(self):
+        data = run_matlab_export(
+            "rskel_symm_p",
+            textwrap.dedent(
+                f"""
+                addpath(genpath('{str(FLAM_REF).replace("'", "''")}'));
+                n = 14;
+                x = linspace(0,1,n);
+                dx = reshape(x,[],1) - reshape(x,1,[]);
+                Ad = 1./(1 + abs(dx)) + 2*eye(n) + 0.02i*dx;
+                X = reshape(sin((1:(2*n))/17), n, 2) ...
+                    + 1i*reshape(cos((1:(2*n))/19), n, 2);
+                Z = reshape(cos((1:(2*n))/23), n, 2) ...
+                    + 1i*reshape(sin((1:(2*n))/29), n, 2);
+                F = rskel(Ad,x,x,3,1e-10,[],struct('symm','p'));
+                Ymv = rskel_mv(F,X);
+                Yadj = rskel_mv(F,Z,'c');
+                P = F.P;
+                lvpd = F.lvpd;
+                lvpu = F.lvpu;
+                nd = length(F.D);
+                nu = length(F.U);
+                mapped_to_h = strcmp(F.symm,'h');
+                save('__OUT__','Ad','X','Z','Ymv','Yadj','P','lvpd','lvpu','nd','nu','mapped_to_h');
+                exit;
+                """
+            ),
+        )
+
+        x = np.linspace(0.0, 1.0, 14).reshape(1, -1)
+        F = rskel(data["Ad"], x, x, occ=3, rank_or_tol=1e-10, opts={"symm": "p"})
+
+        self.assertEqual(F.symm, "h")
+        self.assertEqual(int(data["mapped_to_h"].ravel()[0]), 1)
+        self.assertEqual(F.Q.size, 0)
+        np.testing.assert_array_equal(F.P, data["P"].ravel().astype(np.int64) - 1)
+        np.testing.assert_array_equal(F.lvpd, data["lvpd"].ravel().astype(np.int64))
+        np.testing.assert_array_equal(F.lvpu, data["lvpu"].ravel().astype(np.int64))
+        self.assertEqual(len(F.D), int(data["nd"].ravel()[0]))
+        self.assertEqual(len(F.U), int(data["nu"].ravel()[0]))
+        np.testing.assert_allclose(rskel_mv(F, data["X"]), data["Ymv"], rtol=1e-9, atol=1e-9)
+        np.testing.assert_allclose(rskel_mv(F, data["Z"], trans="c"), data["Yadj"], rtol=1e-9, atol=1e-9)
+
 
 if __name__ == "__main__":
     unittest.main()
