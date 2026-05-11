@@ -64,7 +64,7 @@ bug instead of silently skipping.
 ## 3. Finish `rskelf` Fidelity
 
 - [x] Add MATLAB parity for `rskelf` with `symm='s'`.
-- [ ] Add MATLAB parity for `rskelf` with `symm='h'`.
+- [x] Add MATLAB parity for `rskelf` with `symm='h'`.
 - [ ] Add MATLAB parity for `rskelf` with `symm='p'`.
 - [ ] Add complex matrix parity for each supported symmetry mode.
 - [ ] Add proxy-callback parity for each supported symmetry mode where MATLAB
