@@ -139,9 +139,9 @@ bug instead of silently skipping.
 
 ## 8. Implement True HIFIE
 
-- [ ] Study upstream `FLAM/hifie/base/hifie2_base.m`,
+- [x] Study upstream `FLAM/hifie/base/hifie2_base.m`,
       `hifie3_base.m`, `hifie_id.m`, and `hifie_idx.m`.
-- [ ] Define Python HIFIE factor dataclasses rather than aliasing `RSkelFFactor`.
+- [x] Define Python HIFIE factor dataclasses rather than aliasing `RSkelFFactor`.
 - [ ] Port the internal dimensional-reduction helper family.
 - [ ] Implement true `hifie2`.
 - [ ] Implement true `hifie2x`.

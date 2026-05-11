@@ -8,13 +8,14 @@ preserving the HIFIE entry points for future dimensional-reduction kernels.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
 
-from .core import id, snorm
+from .core import StructMixin, id, snorm
 from .rskelf import (
-    RSkelFFactor as HIFIEFactor,
+    RSkelFFactor,
     rskelf,
     rskelf_cholmv,
     rskelf_cholsv,
@@ -24,6 +25,36 @@ from .rskelf import (
     rskelf_spdiag,
     rskelf_sv,
 )
+
+
+@dataclass
+class HIFIEFactor(StructMixin):
+    backend: RSkelFFactor
+    variant: str
+    N: int
+    nlvl: int
+    lvp: np.ndarray
+    factors: list[Any]
+    symm: str
+    opts: dict[str, Any]
+
+    @classmethod
+    def from_backend(cls, backend: RSkelFFactor, variant: str) -> "HIFIEFactor":
+        opts = dict(backend.opts)
+        opts["hifie_variant"] = variant
+        return cls(
+            backend=backend,
+            variant=variant,
+            N=backend.N,
+            nlvl=backend.nlvl,
+            lvp=backend.lvp,
+            factors=backend.factors,
+            symm=backend.symm,
+            opts=opts,
+        )
+
+    def __getattr__(self, name: str):
+        return getattr(object.__getattribute__(self, "backend"), name)
 
 
 def hifie_id(K, K1, K2, rank_or_tol, Tmax=2, rrqr_iter=np.inf):
@@ -115,38 +146,35 @@ def hifie3x(A, x, occ, rank_or_tol, pxyfun=None, opts: dict[str, Any] | None = N
 
 
 def hifie_mv(F: HIFIEFactor, X, trans: str = "n"):
-    return rskelf_mv(F, X, trans)
+    return rskelf_mv(F.backend, X, trans)
 
 
 def hifie_sv(F: HIFIEFactor, X, trans: str = "n"):
-    return rskelf_sv(F, X, trans)
+    return rskelf_sv(F.backend, X, trans)
 
 
 def hifie_logdet(F: HIFIEFactor):
-    return rskelf_logdet(F)
+    return rskelf_logdet(F.backend)
 
 
 def hifie_cholmv(F: HIFIEFactor, X, trans: str = "n"):
-    return rskelf_cholmv(F, X, trans)
+    return rskelf_cholmv(F.backend, X, trans)
 
 
 def hifie_cholsv(F: HIFIEFactor, X, trans: str = "n"):
-    return rskelf_cholsv(F, X, trans)
+    return rskelf_cholsv(F.backend, X, trans)
 
 
 def hifie_diag(F: HIFIEFactor, dinv: bool | int = False, opts: dict[str, Any] | None = None):
-    return rskelf_diag(F, dinv, opts)
+    return rskelf_diag(F.backend, dinv, opts)
 
 
 def hifie_spdiag(F: HIFIEFactor, dinv: bool | int = False):
-    return rskelf_spdiag(F, dinv)
+    return rskelf_spdiag(F.backend, dinv)
 
 
 def _hifie(A, x, occ, rank_or_tol, pxyfun, opts, variant: str) -> HIFIEFactor:
-    F = rskelf(A, x, occ, rank_or_tol, pxyfun=pxyfun, opts=opts)
-    F.opts = dict(F.opts)
-    F.opts["hifie_variant"] = variant
-    return F
+    return HIFIEFactor.from_backend(rskelf(A, x, occ, rank_or_tol, pxyfun=pxyfun, opts=opts), variant)
 
 
 __all__ = [
