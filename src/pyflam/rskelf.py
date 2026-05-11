@@ -31,6 +31,7 @@ class RSkelFFactor(StructMixin):
     lvp: np.ndarray
     factors: list[RSkelFFactorBlock] = field(default_factory=list)
     symm: str = "n"
+    A: Any = None
     A_dense: np.ndarray | None = None
     lu: tuple[np.ndarray, np.ndarray] | None = None
     chol: np.ndarray | None = None
@@ -84,7 +85,8 @@ def rskelf(A, x, occ, rank_or_tol, pxyfun=None, opts=None) -> RSkelFFactor:
     x = _as_points(x)
     N = x.shape[1]
     tree = hypoct(x, occ, o["lvlmax"], o["ext"])
-    A_dense = materialize(A, N, N)
+    A_dense = None if callable(A) else materialize(A, N, N)
+    A_dtype = _matrix_dtype(A, N, A_dense)
 
     rem = np.ones(N, dtype=bool)
     modified: list[np.ndarray | None] = [None for _ in tree.nodes]
@@ -108,13 +110,13 @@ def rskelf(A, x, occ, rank_or_tol, pxyfun=None, opts=None) -> RSkelFFactor:
             node = tree.nodes[node_idx]
             slf = np.asarray(node.xi, dtype=np.int64)
             if slf.size == 0:
-                modified[node_idx] = np.zeros((0, 0), dtype=A_dense.dtype)
+                modified[node_idx] = np.zeros((0, 0), dtype=A_dtype)
                 modified_idx[node_idx] = slf
                 continue
 
             nbr = _concat_indices([tree.nodes[j].xi for j in node.nbor])
             nslf = slf.size
-            M = np.zeros((nslf, nslf), dtype=A_dense.dtype)
+            M = np.zeros((nslf, nslf), dtype=A_dtype)
             if lvl < tree.nlvl - 1 and node.chld:
                 pos = {int(v): k for k, v in enumerate(slf)}
                 for ch in node.chld:
@@ -127,7 +129,7 @@ def rskelf(A, x, occ, rank_or_tol, pxyfun=None, opts=None) -> RSkelFFactor:
                     modified[ch] = None
                     modified_idx[ch] = None
 
-            Kpxy = np.zeros((0, nslf), dtype=A_dense.dtype)
+            Kpxy = np.zeros((0, nslf), dtype=A_dtype)
             if lvl + 1 > 2:
                 if pxyfun is None:
                     nbr = np.setdiff1d(np.flatnonzero(rem), slf, assume_unique=False)
@@ -136,9 +138,9 @@ def rskelf(A, x, occ, rank_or_tol, pxyfun=None, opts=None) -> RSkelFFactor:
                     Kpxy = np.asarray(Kpxy)
                     nbr = np.asarray(nbr, dtype=np.int64)
 
-            K = submatrix(A, nbr, slf) if nbr.size else np.zeros((0, nslf), dtype=A_dense.dtype)
+            K = submatrix(A, nbr, slf) if nbr.size else np.zeros((0, nslf), dtype=A_dtype)
             if o["symm"] == "n":
-                K2 = submatrix(A, slf, nbr).conj().T if nbr.size else np.zeros((0, nslf), dtype=A_dense.dtype)
+                K2 = submatrix(A, slf, nbr).conj().T if nbr.size else np.zeros((0, nslf), dtype=A_dtype)
                 K = np.vstack((K, K2))
             if Kpxy.size:
                 K = np.vstack((K, Kpxy))
@@ -209,7 +211,7 @@ def rskelf(A, x, occ, rank_or_tol, pxyfun=None, opts=None) -> RSkelFFactor:
         lvp.append(len(factors))
 
     remaining = np.flatnonzero(rem)
-    S = np.zeros((remaining.size, remaining.size), dtype=A_dense.dtype)
+    S = np.zeros((remaining.size, remaining.size), dtype=A_dtype)
     if remaining.size:
         pos = {int(v): k for k, v in enumerate(remaining)}
         for M, idx in zip(modified, modified_idx):
@@ -221,9 +223,9 @@ def rskelf(A, x, occ, rank_or_tol, pxyfun=None, opts=None) -> RSkelFFactor:
 
     lu = None
     chol = None
-    if o["symm"] == "p":
+    if o["symm"] == "p" and A_dense is not None:
         chol = np.linalg.cholesky(A_dense)
-    elif o["symm"] != "n" or remaining.size:
+    elif A_dense is not None and (o["symm"] != "n" or remaining.size):
         lu = la.lu_factor(A_dense)
     return RSkelFFactor(
         N=N,
@@ -231,6 +233,7 @@ def rskelf(A, x, occ, rank_or_tol, pxyfun=None, opts=None) -> RSkelFFactor:
         lvp=np.asarray(lvp, dtype=np.int64),
         factors=factors,
         symm=o["symm"],
+        A=A,
         A_dense=A_dense,
         lu=lu,
         chol=chol,
@@ -364,11 +367,14 @@ def rskelf_diag(F: RSkelFFactor, dinv: bool | int = False, opts: dict[str, Any] 
     selected-inversion can be layered underneath this API later.
     """
 
-    if F.A_dense is None:
-        raise ValueError("factor does not contain matrix data")
     if dinv:
-        eye = np.eye(F.N, dtype=F.A_dense.dtype)
+        eye = np.eye(F.N, dtype=_factor_dtype(F, np.array(0.0)))
         return np.diag(rskelf_sv(F, eye))
+    if F.A_dense is None:
+        if _has_complete_compact_factor(F):
+            eye = np.eye(F.N, dtype=_factor_dtype(F, np.array(0.0)))
+            return np.diag(rskelf_mv(F, eye))
+        raise ValueError("factor does not contain matrix data")
     return np.diag(F.A_dense).copy()
 
 
@@ -379,7 +385,7 @@ def rskelf_spdiag(F: RSkelFFactor, dinv: bool | int = False) -> np.ndarray:
 
 
 def _require_positive_definite(F: RSkelFFactor, caller: str) -> None:
-    if F.symm != "p" or F.chol is None:
+    if F.symm != "p" or (F.chol is None and not _has_complete_compact_factor(F)):
         raise ValueError(f"{caller} requires a factorization built with opts={{'symm': 'p'}}")
 
 
@@ -389,6 +395,8 @@ def _has_complete_compact_factor(F: RSkelFFactor) -> bool:
 
 def _factor_dtype(F: RSkelFFactor, X) -> np.dtype:
     dtype = np.asarray(X).dtype
+    if F.A_dense is not None:
+        dtype = np.result_type(dtype, F.A_dense)
     for f in F.factors:
         dtype = np.result_type(dtype, f.T, f.L)
         if f.U is not None:
@@ -398,6 +406,15 @@ def _factor_dtype(F: RSkelFFactor, X) -> np.dtype:
         if f.F is not None:
             dtype = np.result_type(dtype, f.F)
     return np.dtype(dtype)
+
+
+def _matrix_dtype(A, n: int, A_dense: np.ndarray | None) -> np.dtype:
+    if A_dense is not None:
+        return A_dense.dtype
+    if n == 0:
+        return np.dtype(float)
+    sample = submatrix(A, np.array([0], dtype=np.int64), np.array([0], dtype=np.int64))
+    return np.asarray(sample).dtype
 
 
 def _prepare_rhs(F: RSkelFFactor, X) -> np.ndarray:
@@ -718,9 +735,15 @@ def _rskelf_apply_mode(F: RSkelFFactor, X: np.ndarray, trans: str, mode: int, so
 
 
 def _default_partial_matrix(F: RSkelFFactor) -> np.ndarray:
-    if F.Si is None or F.A_dense is None or F.S is None:
+    if F.Si is None or F.S is None:
         raise ValueError("partial factor does not contain skeleton matrix data")
-    return F.A_dense[np.ix_(F.Si, F.Si)] + F.S
+    if F.A_dense is not None:
+        A_skel = F.A_dense[np.ix_(F.Si, F.Si)]
+    elif F.A is not None:
+        A_skel = submatrix(F.A, F.Si, F.Si)
+    else:
+        raise ValueError("partial factor does not contain skeleton matrix data")
+    return A_skel + F.S
 
 
 def _default_partial_mvfun(F: RSkelFFactor):

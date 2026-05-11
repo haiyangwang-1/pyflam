@@ -64,6 +64,24 @@ class DenseAlgorithmTests(unittest.TestCase):
                 np.testing.assert_allclose(rskel_mv(F, X), A @ X, rtol=1e-9, atol=1e-9)
                 np.testing.assert_allclose(rskel_mv(F, X, "c"), A.conj().T @ X, rtol=1e-9, atol=1e-9)
 
+    def test_rskel_callback_is_not_eagerly_materialized(self):
+        x = np.linspace(0.0, 1.0, 20).reshape(1, -1)
+        A = kernel_matrix(x.ravel(), x.ravel()) + 3.0 * np.eye(20)
+        X = np.random.default_rng(8).standard_normal((20, 2))
+        calls = []
+
+        def Afun(i, j):
+            calls.append((i.size, j.size))
+            if i.size == A.shape[0] and j.size == A.shape[1]:
+                raise AssertionError("callback was eagerly materialized")
+            return A[np.ix_(i, j)]
+
+        F = rskel(Afun, x, x, occ=2, rank_or_tol=1e-10)
+
+        self.assertIsNone(F.A_dense)
+        self.assertGreater(len(calls), 0)
+        np.testing.assert_allclose(rskel_mv(F, X), A @ X, rtol=1e-9, atol=1e-9)
+
     def test_ifmm_mv_matches_dense(self):
         F = ifmm(self.Afun, self.x, self.x, occ=3, rank_or_tol=1e-10, opts={"store": "a", "near": 1})
         self.assertGreater(len(F.B), 0)
@@ -159,6 +177,27 @@ class DenseAlgorithmTests(unittest.TestCase):
         np.testing.assert_allclose(CctX, A @ X, rtol=1e-9, atol=1e-9)
         np.testing.assert_allclose(rskelf_cholsv(F, rskelf_cholmv(F, X)), X, rtol=1e-10, atol=1e-10)
         np.testing.assert_allclose(rskelf_cholsv(F, rskelf_cholmv(F, X, "c"), "c"), X, rtol=1e-10, atol=1e-10)
+
+    def test_rskelf_callback_is_not_eagerly_materialized(self):
+        x = np.linspace(0.0, 1.0, 20).reshape(1, -1)
+        A = kernel_matrix(x.ravel(), x.ravel()) + 3.0 * np.eye(20)
+        X = np.random.default_rng(9).standard_normal((20, 2))
+        calls = []
+
+        def Afun(i, j):
+            calls.append((i.size, j.size))
+            if i.size == A.shape[0] and j.size == A.shape[1]:
+                raise AssertionError("callback was eagerly materialized")
+            return A[np.ix_(i, j)]
+
+        F = rskelf(Afun, x, occ=2, rank_or_tol=1e-10)
+
+        self.assertIsNone(F.A_dense)
+        self.assertGreater(len(calls), 0)
+        np.testing.assert_allclose(rskelf_mv(F, X), A @ X, rtol=1e-9, atol=1e-9)
+        np.testing.assert_allclose(rskelf_sv(F, X), np.linalg.solve(A, X), rtol=1e-9, atol=1e-9)
+        np.testing.assert_allclose(rskelf_diag(F), np.diag(A), rtol=1e-9, atol=1e-9)
+        np.testing.assert_allclose(rskelf_diag(F, True), np.diag(np.linalg.inv(A)), rtol=1e-9, atol=1e-9)
 
     def test_rskelf_partial_mv_sv_use_skeleton_callback(self):
         x = np.linspace(0.0, 1.0, 20).reshape(1, -1)

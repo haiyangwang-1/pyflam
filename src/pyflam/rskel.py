@@ -69,7 +69,8 @@ def rskel(A, rx, cx, occ, rank_or_tol, pxyfun=None, opts=None) -> RSkelFactor:
     col_mask = perm >= M
     P = perm[~col_mask]
     Q = np.array([], dtype=np.int64) if o["symm"] != "n" else perm[col_mask] - M
-    A_dense = materialize(A, M, N)
+    A_dense = None if callable(A) else materialize(A, M, N)
+    A_dtype = _matrix_dtype(A, M, N, A_dense)
     for node in tree.nodes:
         xi = np.asarray(node.xi, dtype=np.int64)
         row_mask = xi < M
@@ -118,7 +119,7 @@ def rskel(A, rx, cx, occ, rank_or_tol, pxyfun=None, opts=None) -> RSkelFactor:
                     if rxi.size and cxi.size:
                         D_blocks.append(RSkelDBlock(rxi, cxi, submatrix(A, rxi, cxi)))
 
-            Kpxy = np.zeros((rslf.size, 0), dtype=A_dense.dtype)
+            Kpxy = np.zeros((rslf.size, 0), dtype=A_dtype)
             if lvl + 1 > 2 and rslf.size:
                 if pxyfun is None:
                     cnbr = np.setdiff1d(np.flatnonzero(crem), cslf, assume_unique=False)
@@ -132,11 +133,11 @@ def rskel(A, rx, cx, occ, rank_or_tol, pxyfun=None, opts=None) -> RSkelFactor:
             rsk, rrd, rT = id(K, rank_or_tol, o["Tmax"], o["rrqr_iter"]) if rslf.size else (
                 np.array([], dtype=np.int64),
                 np.array([], dtype=np.int64),
-                np.zeros((0, 0)),
+                np.zeros((0, 0), dtype=A_dtype),
             )
 
             if o["symm"] == "n":
-                Kpxy = np.zeros((0, cslf.size))
+                Kpxy = np.zeros((0, cslf.size), dtype=A_dtype)
                 if lvl + 1 > 2 and cslf.size:
                     if pxyfun is None:
                         rnbr = np.setdiff1d(np.flatnonzero(rrem), rslf, assume_unique=False)
@@ -150,7 +151,7 @@ def rskel(A, rx, cx, occ, rank_or_tol, pxyfun=None, opts=None) -> RSkelFactor:
                 csk, crd, cT = id(K, rank_or_tol, o["Tmax"], o["rrqr_iter"]) if cslf.size else (
                     np.array([], dtype=np.int64),
                     np.array([], dtype=np.int64),
-                    np.zeros((0, 0)),
+                    np.zeros((0, 0), dtype=A_dtype),
                 )
             else:
                 csk = crd = np.array([], dtype=np.int64)
@@ -219,13 +220,14 @@ def _rskel_mv_compact(F: RSkelFactor, X: np.ndarray, trans: str) -> np.ndarray:
     prem = np.ones(np_, dtype=bool)
     qrem = np.ones(nq, dtype=bool)
     qmap = np.zeros((nq, 2), dtype=np.int64)
-    Z: list[np.ndarray] = [np.empty((0, X.shape[1]), dtype=np.result_type(X, F.A_dense))]
-    Z.extend(np.empty((0, X.shape[1]), dtype=np.result_type(X, F.A_dense)) for _ in range(nlvl - 1))
-    Ylevels: list[np.ndarray] = [np.empty((0, X.shape[1]), dtype=np.result_type(X, F.A_dense)) for _ in range(nlvl + 1)]
+    dtype = _factor_dtype(F, X)
+    Z: list[np.ndarray] = [np.empty((0, X.shape[1]), dtype=dtype)]
+    Z.extend(np.empty((0, X.shape[1]), dtype=dtype) for _ in range(nlvl - 1))
+    Ylevels: list[np.ndarray] = [np.empty((0, X.shape[1]), dtype=dtype) for _ in range(nlvl + 1)]
 
     qmap[q, 0] = np.arange(nq)
     pf = 0
-    Z[0] = np.array(X[q, :], dtype=np.result_type(X, F.A_dense), copy=True)
+    Z[0] = np.array(X[q, :], dtype=dtype, copy=True)
     for lvl in range(nlvl - 1):
         for i in range(F.lvpu[lvl], F.lvpu[lvl + 1]):
             f = F.U[i]
@@ -312,11 +314,22 @@ def _rskel_mv_compact(F: RSkelFactor, X: np.ndarray, trans: str) -> np.ndarray:
 
 def _factor_dtype(F: RSkelFactor, X) -> np.dtype:
     dtype = np.asarray(X).dtype
+    if F.A_dense is not None:
+        dtype = np.result_type(dtype, F.A_dense)
     for f in F.D:
         dtype = np.result_type(dtype, f.D)
     for f in F.U:
         dtype = np.result_type(dtype, f.rT, f.cT)
     return np.dtype(dtype)
+
+
+def _matrix_dtype(A, m: int, n: int, A_dense: np.ndarray | None) -> np.dtype:
+    if A_dense is not None:
+        return A_dense.dtype
+    if m == 0 or n == 0:
+        return np.dtype(float)
+    sample = submatrix(A, np.array([0], dtype=np.int64), np.array([0], dtype=np.int64))
+    return np.asarray(sample).dtype
 
 
 def _rskel_upward_T(F: RSkelFactor, f: RSkelUBlock, trans: str) -> np.ndarray:
