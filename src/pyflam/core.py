@@ -13,6 +13,7 @@ import warnings
 import numpy as np
 from numpy.typing import ArrayLike
 import scipy.linalg as la
+import scipy.sparse as sp
 
 
 class StructMixin:
@@ -285,12 +286,12 @@ def snorm(
 
     rng = np.random.default_rng(0)
     x = rng.standard_normal((n, 1))
-    x /= la.norm(x)
+    x /= np.linalg.norm(x)
     s_old = 0.0
     for it in range(1, niter_max + 1):
         y = mv(x)
         z = mv(y) if herm else (mva(y) if mva is not None else mv(y))
-        norm_z = la.norm(z)
+        norm_z = np.linalg.norm(z)
         if norm_z == 0:
             return 0.0, it
         x = z / norm_z
@@ -302,13 +303,168 @@ def snorm(
     return s_old, niter_max
 
 
+def spget(A: ArrayLike, I: ArrayLike, J: ArrayLike) -> np.ndarray:
+    """Return ``full(A[I, J])`` for sparse or dense matrices."""
+
+    I = np.asarray(I, dtype=np.int64)
+    J = np.asarray(J, dtype=np.int64)
+    if sp.issparse(A):
+        return np.asarray(A[:, J][I, :].toarray())
+    return np.asarray(A)[np.ix_(I, J)]
+
+
+def spgetv(A: list[Any], I: ArrayLike, J: ArrayLike) -> np.ndarray:
+    """Sparse column-list access equivalent to ``M[I, J]``."""
+
+    I = np.asarray(I, dtype=np.int64)
+    J = np.asarray(J, dtype=np.int64)
+    if not J.size:
+        return np.zeros((I.size, 0))
+    cols = []
+    for j in J:
+        col = A[int(j)]
+        if sp.issparse(col):
+            cols.append(np.asarray(col[I].toarray()).reshape(-1))
+        else:
+            cols.append(np.asarray(col)[I].reshape(-1))
+    return np.column_stack(cols)
+
+
+def spaddv(A: list[Any], I: ArrayLike, J: ArrayLike, V: ArrayLike) -> list[Any]:
+    """Add ``V`` into sparse column-list storage at rows ``I`` and columns ``J``."""
+
+    I = np.asarray(I, dtype=np.int64)
+    J = np.asarray(J, dtype=np.int64)
+    V = np.asarray(V)
+    if V.shape != (I.size, J.size):
+        raise ValueError("V must have shape (len(I), len(J))")
+    for col_pos, j in enumerate(J):
+        jj = int(j)
+        col = A[jj].tolil(copy=True) if sp.issparse(A[jj]) else sp.lil_matrix(np.asarray(A[jj]).reshape(-1, 1))
+        for row_pos, i in enumerate(I):
+            col[int(i), 0] = col[int(i), 0] + V[row_pos, col_pos]
+        A[jj] = col.tocsc()
+    return A
+
+
+def sppush2(I: ArrayLike, J: ArrayLike, nz: int, i: ArrayLike, j: ArrayLike) -> tuple[np.ndarray, np.ndarray, int]:
+    I = np.asarray(I)
+    J = np.asarray(J)
+    i = np.asarray(i).reshape(-1)
+    j = np.asarray(j).reshape(-1)
+    if I.size != J.size or i.size != j.size:
+        raise ValueError("arrays I and J must have the same size, as must i and j")
+    nznew = nz + i.size
+    if I.size < nznew:
+        new_size = max(1, I.size)
+        while new_size < nznew:
+            new_size *= 2
+        I = np.pad(I, (0, new_size - I.size))
+        J = np.pad(J, (0, new_size - J.size))
+    I[nz:nznew] = i
+    J[nz:nznew] = j
+    return I, J, nznew
+
+
+def sppush3(
+    I: ArrayLike,
+    J: ArrayLike,
+    V: ArrayLike,
+    nz: int,
+    i: ArrayLike,
+    j: ArrayLike,
+    v: ArrayLike,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, int]:
+    I = np.asarray(I)
+    J = np.asarray(J)
+    V = np.asarray(V)
+    i = np.asarray(i).reshape(-1)
+    j = np.asarray(j).reshape(-1)
+    v = np.asarray(v).reshape(-1)
+    if I.size != J.size or I.size != V.size or i.size != j.size or i.size != v.size:
+        raise ValueError("arrays I, J, and V must have compatible sizes")
+    nznew = nz + i.size
+    if I.size < nznew:
+        new_size = max(1, I.size)
+        while new_size < nznew:
+            new_size *= 2
+        I = np.pad(I, (0, new_size - I.size))
+        J = np.pad(J, (0, new_size - J.size))
+        V = np.pad(V, (0, new_size - V.size))
+    I[nz:nznew] = i
+    J[nz:nznew] = j
+    V[nz:nznew] = v
+    return I, J, V, nznew
+
+
+def spsymm(A: ArrayLike, symm: str) -> Any:
+    """Recover a full sparse/dense symmetric matrix from compact storage."""
+
+    symm = chksymm(symm)
+    if symm == "n":
+        return A
+    if sp.issparse(A):
+        D = sp.diags(A.diagonal(), format=A.format)
+        return A + (A.T if symm == "s" else A.conj().T) - D
+    arr = np.asarray(A)
+    D = np.diag(np.diag(arr))
+    return arr + (arr.T if symm == "s" else arr.conj().T) - D
+
+
+def spsymm2(A: ArrayLike, B: ArrayLike, symm: str) -> tuple[Any, Any]:
+    """Symmetrize paired off-diagonal sparse/dense blocks."""
+
+    symm = chksymm(symm)
+    if symm == "n":
+        return A, B
+    Bt = B.T if symm == "s" else B.conj().T
+    A2 = A + Bt
+    B2 = A2.T if symm == "s" else A2.conj().T
+    return A2, B2
+
+
+def detperm(p: ArrayLike) -> int:
+    """Return the sign of a 0-based permutation vector."""
+
+    p = np.asarray(p, dtype=np.int64).reshape(-1)
+    if np.sort(p).tolist() != list(range(p.size)):
+        raise ValueError("p must be a 0-based permutation")
+    seen = np.zeros(p.size, dtype=bool)
+    cycles = 0
+    for start in range(p.size):
+        if seen[start]:
+            continue
+        cycles += 1
+        j = start
+        while not seen[j]:
+            seen[j] = True
+            j = p[j]
+    return -1 if (p.size - cycles) % 2 else 1
+
+
+def ismemb(A: ArrayLike, S: ArrayLike) -> np.ndarray:
+    """Return boolean membership of ``A`` in sorted or unsorted set ``S``."""
+
+    return np.isin(A, S)
+
+
 def logdet_ldl(D: ArrayLike) -> complex:
+    """Compute log determinant of a block diagonal LDL ``D`` factor."""
+
     arr = np.asarray(D)
     if arr.ndim == 1:
-        vals = arr
-    else:
-        vals = np.diag(arr)
-    return np.sum(np.log(vals))
+        return np.sum(np.log(arr))
+    nonzero_per_col = np.count_nonzero(arr, axis=0)
+    one_by_one = nonzero_per_col == 1
+    diag = np.diag(arr)
+    ld = np.sum(np.log(diag[one_by_one]))
+    idx = np.flatnonzero(~one_by_one)
+    for k in range(0, idx.size, 2):
+        block_idx = idx[k : k + 2]
+        if block_idx.size == 2:
+            block = arr[np.ix_(block_idx, block_idx)]
+            ld = ld + np.log(block[0, 0] * block[1, 1] - block[0, 1] * block[1, 0])
+    return ld
 
 
 __all__ = [
@@ -321,6 +477,15 @@ __all__ = [
     "hypoct",
     "hypoct_perm",
     "id",
+    "detperm",
+    "ismemb",
     "logdet_ldl",
     "snorm",
+    "spaddv",
+    "spget",
+    "spgetv",
+    "sppush2",
+    "sppush3",
+    "spsymm",
+    "spsymm2",
 ]
