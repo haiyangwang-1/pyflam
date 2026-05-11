@@ -21,6 +21,18 @@ class RSkelfOptionParityTests(unittest.TestCase):
     def setUpClass(cls):
         require_paths(MATLAB, FLAM_REF, label="rskelf option parity")
 
+    def assert_factor_matches_matlab(self, data, symm, n, *, chol=False):
+        x = np.linspace(0.0, 1.0, n).reshape(1, -1)
+        F = rskelf(data["Ad"], x, occ=2, rank_or_tol=1e-10, opts={"symm": symm})
+
+        self.assertEqual(len(F.factors), int(data["nfactors"].ravel()[0]))
+        np.testing.assert_allclose(rskelf_mv(F, data["X"]), data["Ymv"], rtol=1e-9, atol=1e-9)
+        np.testing.assert_allclose(rskelf_sv(F, data["X"]), data["Ysv"], rtol=1e-9, atol=1e-9)
+        if chol:
+            np.testing.assert_allclose(rskelf_cholmv(F, data["X"]), data["Ycholmv"], rtol=5e-8, atol=5e-8)
+            np.testing.assert_allclose(rskelf_cholsv(F, data["X"]), data["Ycholsv"], rtol=5e-8, atol=5e-8)
+        self.assertLess(logdet_mod_error(rskelf_logdet(F), data["ld"].item()), 1e-9)
+
     def test_symmetric_mode_matches_matlab(self):
         data = run_matlab_export(
             "rskelf_symm_s",
@@ -114,6 +126,112 @@ class RSkelfOptionParityTests(unittest.TestCase):
         np.testing.assert_allclose(rskelf_cholmv(F, data["X"]), data["Ycholmv"], rtol=5e-8, atol=5e-8)
         np.testing.assert_allclose(rskelf_cholsv(F, data["X"]), data["Ycholsv"], rtol=5e-8, atol=5e-8)
         self.assertLess(logdet_mod_error(rskelf_logdet(F), data["ld"].item()), 1e-9)
+
+    def test_complex_unsymmetric_mode_matches_matlab(self):
+        data = run_matlab_export(
+            "rskelf_complex_n",
+            textwrap.dedent(
+                f"""
+                addpath(genpath('{str(FLAM_REF).replace("'", "''")}'));
+                n = 20;
+                x = linspace(0,1,n);
+                row = reshape(x,[],1);
+                col = reshape(x,1,[]);
+                dx = row - col;
+                Ad = 1./(1 + abs(dx)) + 3*eye(n) + 0.03i*(row + 2*col);
+                X = reshape(sin((1:(2*n))/17), n, 2) ...
+                    + 1i*reshape(cos((1:(2*n))/19), n, 2);
+                F = rskelf(Ad,x,2,1e-10,[],struct('symm','n'));
+                Ymv = rskelf_mv(F,X);
+                Ysv = rskelf_sv(F,X);
+                ld = rskelf_logdet(F);
+                nfactors = length(F.factors);
+                save('__OUT__','Ad','X','Ymv','Ysv','ld','nfactors');
+                exit;
+                """
+            ),
+        )
+
+        self.assert_factor_matches_matlab(data, "n", 20)
+
+    def test_complex_symmetric_mode_matches_matlab(self):
+        data = run_matlab_export(
+            "rskelf_complex_s",
+            textwrap.dedent(
+                f"""
+                addpath(genpath('{str(FLAM_REF).replace("'", "''")}'));
+                n = 20;
+                x = linspace(0,1,n);
+                row = reshape(x,[],1);
+                col = reshape(x,1,[]);
+                dx = row - col;
+                Ad = 1./(1 + abs(dx)) + 3*eye(n) + 0.03i*(row + col);
+                X = reshape(sin((1:(2*n))/17), n, 2) ...
+                    + 1i*reshape(cos((1:(2*n))/19), n, 2);
+                F = rskelf(Ad,x,2,1e-10,[],struct('symm','s'));
+                Ymv = rskelf_mv(F,X);
+                Ysv = rskelf_sv(F,X);
+                ld = rskelf_logdet(F);
+                nfactors = length(F.factors);
+                save('__OUT__','Ad','X','Ymv','Ysv','ld','nfactors');
+                exit;
+                """
+            ),
+        )
+
+        self.assert_factor_matches_matlab(data, "s", 20)
+
+    def test_complex_hermitian_mode_matches_matlab(self):
+        data = run_matlab_export(
+            "rskelf_complex_h",
+            textwrap.dedent(
+                f"""
+                addpath(genpath('{str(FLAM_REF).replace("'", "''")}'));
+                n = 8;
+                x = linspace(0,1,n);
+                dx = reshape(x,[],1) - reshape(x,1,[]);
+                Ad = 1./(1 + abs(dx)) + 3*eye(n) + 0.03i*dx;
+                X = reshape(sin((1:(2*n))/17), n, 2) ...
+                    + 1i*reshape(cos((1:(2*n))/19), n, 2);
+                F = rskelf(Ad,x,2,1e-10,[],struct('symm','h'));
+                Ymv = rskelf_mv(F,X);
+                Ysv = rskelf_sv(F,X);
+                ld = rskelf_logdet(F);
+                nfactors = length(F.factors);
+                save('__OUT__','Ad','X','Ymv','Ysv','ld','nfactors');
+                exit;
+                """
+            ),
+        )
+
+        self.assert_factor_matches_matlab(data, "h", 8)
+
+    def test_complex_positive_definite_mode_matches_matlab(self):
+        data = run_matlab_export(
+            "rskelf_complex_p",
+            textwrap.dedent(
+                f"""
+                addpath(genpath('{str(FLAM_REF).replace("'", "''")}'));
+                n = 8;
+                x = linspace(0,1,n);
+                dx = reshape(x,[],1) - reshape(x,1,[]);
+                Ad = 1./(1 + abs(dx)) + 3*eye(n) + 0.03i*dx;
+                X = reshape(sin((1:(2*n))/17), n, 2) ...
+                    + 1i*reshape(cos((1:(2*n))/19), n, 2);
+                F = rskelf(Ad,x,2,1e-10,[],struct('symm','p'));
+                Ymv = rskelf_mv(F,X);
+                Ysv = rskelf_sv(F,X);
+                Ycholmv = rskelf_cholmv(F,X);
+                Ycholsv = rskelf_cholsv(F,X);
+                ld = rskelf_logdet(F);
+                nfactors = length(F.factors);
+                save('__OUT__','Ad','X','Ymv','Ysv','Ycholmv','Ycholsv','ld','nfactors');
+                exit;
+                """
+            ),
+        )
+
+        self.assert_factor_matches_matlab(data, "p", 8, chol=True)
 
 
 if __name__ == "__main__":
