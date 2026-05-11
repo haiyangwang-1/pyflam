@@ -21,6 +21,20 @@ from .core import (
     spsymm2,
 )
 from .ifmm import IFMMFactor, ifmm, ifmm_mv
+from .mf import (
+    MFFactor,
+    MFFactorBlock,
+    mf2,
+    mf3,
+    mf_cholmv,
+    mf_cholsv,
+    mf_diag,
+    mf_logdet,
+    mf_mv,
+    mf_spdiag,
+    mf_sv,
+    mfx,
+)
 from .rskel import RSkelFactor, rskel, rskel_mv, rskel_xsp
 from .rskelf import (
     RSkelFFactor,
@@ -41,6 +55,8 @@ __all__ = [
     "HypOctNode",
     "HypOctTree",
     "IFMMFactor",
+    "MFFactor",
+    "MFFactorBlock",
     "RSkelFactor",
     "RSkelFFactor",
     "chktrans",
@@ -53,6 +69,16 @@ __all__ = [
     "ifmm_mv",
     "ismemb",
     "logdet_ldl",
+    "mf2",
+    "mf3",
+    "mf_cholmv",
+    "mf_cholsv",
+    "mf_diag",
+    "mf_logdet",
+    "mf_mv",
+    "mf_spdiag",
+    "mf_sv",
+    "mfx",
     "rskel",
     "rskel_mv",
     "rskel_xsp",
