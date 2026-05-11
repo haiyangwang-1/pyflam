@@ -8,7 +8,7 @@ from typing import Any
 import numpy as np
 import scipy.sparse as sp
 
-from ._matrix import apply_transpose, materialize, submatrix
+from ._matrix import materialize, submatrix
 from .core import StructMixin, _as_points, _normalise_opts, chksymm, chktrans, hypoct, hypoct_perm, id
 
 
@@ -202,23 +202,18 @@ def rskel_mv(F: RSkelFactor, X, trans: str = "n") -> np.ndarray:
     trans = chktrans(trans)
     if trans == "t":
         return np.conj(rskel_mv(F, np.conj(X), "c"))
-    X = np.asarray(X)
+    X = np.asarray(X, dtype=_factor_dtype(F, X))
     one_dim = X.ndim == 1
     if one_dim:
         X = X[:, None]
-    if F.symm == "n":
-        Y = _rskel_mv_n(F, X, trans)
-    else:
-        if F.A_dense is None:
-            raise ValueError("factor does not contain matrix data")
-        Y = apply_transpose(F.A_dense, X, trans)
+    Y = _rskel_mv_compact(F, X, trans)
     return Y[:, 0] if one_dim else Y
 
 
-def _rskel_mv_n(F: RSkelFactor, X: np.ndarray, trans: str) -> np.ndarray:
+def _rskel_mv_compact(F: RSkelFactor, X: np.ndarray, trans: str) -> np.ndarray:
     nlvl = F.nlvl
-    p = F.Q if trans == "c" else F.P
-    q = F.Q if trans == "n" else F.P
+    p = F.Q if F.symm == "n" and trans == "c" else F.P
+    q = F.Q if F.symm == "n" and trans == "n" else F.P
     np_ = p.size
     nq = q.size
     prem = np.ones(np_, dtype=bool)
@@ -234,7 +229,7 @@ def _rskel_mv_n(F: RSkelFactor, X: np.ndarray, trans: str) -> np.ndarray:
     for lvl in range(nlvl - 1):
         for i in range(F.lvpu[lvl], F.lvpu[lvl + 1]):
             f = F.U[i]
-            if trans == "n":
+            if F.symm == "n" and trans == "n":
                 qrem[f.crd] = False
             else:
                 qrem[f.rrd] = False
@@ -248,14 +243,13 @@ def _rskel_mv_n(F: RSkelFactor, X: np.ndarray, trans: str) -> np.ndarray:
 
         for i in range(F.lvpu[lvl], F.lvpu[lvl + 1]):
             f = F.U[i]
-            if trans == "n":
+            if F.symm == "n" and trans == "n":
                 rd = qmap[f.crd, p1]
                 sk = qmap[f.csk, p2]
-                T = f.cT
             else:
                 rd = qmap[f.rrd, p1]
                 sk = qmap[f.rsk, p2]
-                T = f.rT
+            T = _rskel_upward_T(F, f, trans)
             Z[lvl + 1][sk, :] = Z[lvl + 1][sk, :] + T @ Z[lvl][rd, :]
 
     prem[:] = False
@@ -268,11 +262,11 @@ def _rskel_mv_n(F: RSkelFactor, X: np.ndarray, trans: str) -> np.ndarray:
         r = p[r_mask]
         for i in range(F.lvpu[lvl], F.lvpu[lvl + 1]):
             f = F.U[i]
-            if trans == "c":
+            if F.symm == "n" and trans == "c":
                 prem[f.crd] = True
             else:
                 prem[f.rrd] = True
-            if trans == "n":
+            if F.symm == "n" and trans == "n":
                 qrem[f.crd] = True
             else:
                 qrem[f.rrd] = True
@@ -289,16 +283,15 @@ def _rskel_mv_n(F: RSkelFactor, X: np.ndarray, trans: str) -> np.ndarray:
 
         for i in range(F.lvpu[lvl], F.lvpu[lvl + 1]):
             f = F.U[i]
-            if trans == "c":
+            if F.symm == "n" and trans == "c":
                 rd = pmap[f.crd, p1]
                 sk1 = pmap[f.csk, p1]
                 sk2 = pmap[f.csk, p2]
-                T = f.cT
             else:
                 rd = pmap[f.rrd, p1]
                 sk1 = pmap[f.rsk, p1]
                 sk2 = pmap[f.rsk, p2]
-                T = f.rT
+            T = _rskel_downward_T(F, f, trans)
             Ylevels[lvl][rd, :] = T.conj().T @ Ylevels[lvl + 1][sk2, :]
             Ylevels[lvl][sk1, :] = Ylevels[lvl + 1][sk2, :]
 
@@ -315,6 +308,31 @@ def _rskel_mv_n(F: RSkelFactor, X: np.ndarray, trans: str) -> np.ndarray:
             Ylevels[lvl][j, :] = Ylevels[lvl][j, :] + D @ Z[lvl][k, :]
 
     return Ylevels[0][pmap[np.arange(np_), p1], :]
+
+
+def _factor_dtype(F: RSkelFactor, X) -> np.dtype:
+    dtype = np.asarray(X).dtype
+    for f in F.D:
+        dtype = np.result_type(dtype, f.D)
+    for f in F.U:
+        dtype = np.result_type(dtype, f.rT, f.cT)
+    return np.dtype(dtype)
+
+
+def _rskel_upward_T(F: RSkelFactor, f: RSkelUBlock, trans: str) -> np.ndarray:
+    if F.symm == "n":
+        return f.cT if trans == "n" else f.rT
+    if F.symm == "s":
+        return np.conj(f.rT) if trans == "n" else f.rT
+    return f.rT
+
+
+def _rskel_downward_T(F: RSkelFactor, f: RSkelUBlock, trans: str) -> np.ndarray:
+    if F.symm == "n":
+        return f.rT if trans == "n" else f.cT
+    if F.symm == "s":
+        return f.rT if trans == "n" else np.conj(f.rT)
+    return f.rT
 
 
 def rskel_xsp(F: RSkelFactor):

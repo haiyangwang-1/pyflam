@@ -52,6 +52,18 @@ class DenseAlgorithmTests(unittest.TestCase):
         np.testing.assert_array_equal(p, F.P)
         np.testing.assert_array_equal(q, F.Q)
 
+    def test_rskel_symmetric_mv_paths_match_dense(self):
+        x = np.linspace(0.0, 1.0, 20).reshape(1, -1)
+        A = kernel_matrix(x.ravel(), x.ravel()) + 3.0 * np.eye(20)
+        X = np.random.default_rng(7).standard_normal((20, 3))
+
+        for symm in ("s", "h", "p"):
+            with self.subTest(symm=symm):
+                F = rskel(A, x, x, occ=3, rank_or_tol=1e-10, opts={"symm": symm})
+                self.assertGreater(len(F.U), 0)
+                np.testing.assert_allclose(rskel_mv(F, X), A @ X, rtol=1e-9, atol=1e-9)
+                np.testing.assert_allclose(rskel_mv(F, X, "c"), A.conj().T @ X, rtol=1e-9, atol=1e-9)
+
     def test_ifmm_mv_matches_dense(self):
         F = ifmm(self.Afun, self.x, self.x, occ=3, rank_or_tol=1e-10, opts={"store": "a", "near": 1})
         self.assertGreater(len(F.B), 0)
