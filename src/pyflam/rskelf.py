@@ -302,27 +302,19 @@ def rskelf_sv(F: RSkelFFactor, X, trans: str = "n") -> np.ndarray:
 
 
 def rskelf_logdet(F: RSkelFFactor):
-    if _has_complete_compact_factor(F):
-        ld = 0.0 + 0.0j
-        for f in F.factors:
-            if F.symm == "p":
-                ld += 2 * np.sum(np.log(np.diag(f.L).astype(np.result_type(f.L, complex))))
-            elif F.symm == "h":
-                ld += logdet_ldl(f.U)
-            else:
-                if f.U is None or f.p is None:
-                    continue
-                sign = detperm(f.p)
-                ld += np.sum(np.log(np.diag(f.U).astype(np.result_type(f.U, complex))))
-                ld += np.log(np.asarray(sign, dtype=complex))
-        return float(ld.real) + 1j * float(np.mod(ld.imag, 2 * np.pi))
-    if F.A_dense is None:
-        raise ValueError("factor does not contain matrix data")
-    sign, ld = np.linalg.slogdet(F.A_dense)
-    if np.iscomplexobj(F.A_dense):
-        val = np.log(np.linalg.det(F.A_dense))
-        return val.real + 1j * np.mod(val.imag, 2 * np.pi)
-    return np.log(np.asarray(sign, dtype=complex)) + ld
+    ld = 0.0 + 0.0j
+    for f in F.factors:
+        if F.symm == "p":
+            ld += 2 * np.sum(np.log(np.diag(f.L).astype(np.result_type(f.L, complex))))
+        elif F.symm == "h":
+            ld += logdet_ldl(f.U)
+        else:
+            if f.U is None or f.p is None:
+                continue
+            sign = detperm(f.p)
+            ld += np.sum(np.log(np.diag(f.U).astype(np.result_type(f.U, complex))))
+            ld += np.log(np.asarray(sign, dtype=complex))
+    return float(ld.real) + 1j * float(np.mod(ld.imag, 2 * np.pi))
 
 
 def rskelf_cholmv(F: RSkelFFactor, X, trans: str = "n") -> np.ndarray:

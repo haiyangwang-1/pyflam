@@ -8,7 +8,7 @@ from pathlib import Path
 import numpy as np
 import scipy.io
 
-from pyflam import id, ifmm, ifmm_mv, rskelf, rskelf_mv, rskelf_sv
+from pyflam import id, ifmm, ifmm_mv, rskelf, rskelf_logdet, rskelf_mv, rskelf_sv
 
 
 MATLAB = Path(r"C:\Program Files\MATLAB\R2026a\bin\matlab.exe")
@@ -95,6 +95,40 @@ class MatlabParityTests(unittest.TestCase):
         F = rskelf(A, x, 3, 1e-10)
         np.testing.assert_allclose(rskelf_mv(F, X), data["Ymv"], rtol=1e-9, atol=1e-9)
         np.testing.assert_allclose(rskelf_sv(F, X), data["Ysv"], rtol=1e-9, atol=1e-9)
+
+    def test_rskelf_partial_logdet(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "partial_logdet.mat"
+            script = Path(tmp) / "run_partial_logdet.m"
+            script.write_text(
+                textwrap.dedent(
+                    f"""
+                    addpath(genpath('{str(FLAM_REF).replace("'", "''")}'));
+                    n = 18;
+                    x = linspace(0,1,n);
+                    A = @(i,j) 1./(1 + abs(reshape(x(i),[],1) - reshape(x(j),1,[]))) + 2*(i(:)==j(:)');
+                    F = rskelf(A,x,3,1e-10,[],struct('symm','n','stop',1));
+                    ld = rskelf_logdet(F);
+                    Ad = A(1:n,1:n);
+                    save('{str(out).replace("'", "''")}','Ad','ld');
+                    exit;
+                    """
+                )
+            )
+            subprocess.run(
+                [str(MATLAB), "-batch", f"run('{script.as_posix()}')"],
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                timeout=120,
+            )
+            data = scipy.io.loadmat(out)
+
+        x = np.linspace(0.0, 1.0, 18).reshape(1, -1)
+        F = rskelf(data["Ad"], x, 3, 1e-10, opts={"symm": "n", "stop": 1})
+        self.assertGreater(F.Si.size, 0)
+        np.testing.assert_allclose(rskelf_logdet(F), data["ld"].ravel()[0], rtol=1e-9, atol=1e-9)
 
     def test_ifmm_small_apply_and_adjoint(self):
         with tempfile.TemporaryDirectory() as tmp:
