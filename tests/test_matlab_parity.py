@@ -31,6 +31,8 @@ from pyflam import (
     ifmm_mv,
     mf2,
     mf3,
+    mf_cholmv,
+    mf_cholsv,
     mf_diag,
     mf_logdet,
     mf_mv,
@@ -516,6 +518,64 @@ class MatlabParityTests(unittest.TestCase):
         np.testing.assert_allclose(mf_sv(F, data["X"]), data["Ysv"], rtol=1e-9, atol=1e-9)
         np.testing.assert_allclose(mf_sv(F, data["X"], trans="c"), data["Ysad"], rtol=1e-9, atol=1e-9)
         np.testing.assert_allclose(mf_logdet(F), data["ld"].ravel()[0], rtol=1e-9, atol=1e-9)
+
+    def test_mf2_hermitian_and_positive_modes(self):
+        data = _run_flam_export(
+            "mf2_symmetry_modes",
+            """
+                    n = 4;
+                    nd = n - 1;
+                    N = nd^2;
+                    A = sparse(N,N);
+                    for jj = 1:nd
+                      for ii = 1:nd
+                        idx = ii + nd*(jj-1);
+                        A(idx,idx) = 4;
+                        if ii > 1,  A(idx,idx-1) = -1; end
+                        if ii < nd, A(idx,idx+1) = -1; end
+                        if jj > 1,  A(idx,idx-nd) = -1; end
+                        if jj < nd, A(idx,idx+nd) = -1; end
+                      end
+                    end
+                    X = reshape((0:(2*N-1))/(2*N+1),N,2);
+
+                    Fh = mf2(A,n,2,struct('symm','h'));
+                    Yhmv = mf_mv(Fh,X);
+                    Yhmvc = mf_mv(Fh,X,'c');
+                    Yhsv = mf_sv(Fh,X);
+                    Yhsvc = mf_sv(Fh,X,'c');
+                    ldh = mf_logdet(Fh);
+
+                    Fp = mf2(A,n,2,struct('symm','p'));
+                    Ypmv = mf_mv(Fp,X);
+                    Ypsv = mf_sv(Fp,X);
+                    Cpmv = mf_cholmv(Fp,X);
+                    Cpmvc = mf_cholmv(Fp,X,'c');
+                    Cpsv = mf_cholsv(Fp,X);
+                    Cpsvc = mf_cholsv(Fp,X,'c');
+                    ldp = mf_logdet(Fp);
+
+                    save('__OUT__','A','X','Yhmv','Yhmvc','Yhsv','Yhsvc','ldh', ...
+                         'Ypmv','Ypsv','Cpmv','Cpmvc','Cpsv','Cpsvc','ldp');
+                    exit;
+            """,
+        )
+
+        Fh = mf2(data["A"], n=4, occ=2, opts={"symm": "h"})
+        np.testing.assert_allclose(mf_mv(Fh, data["X"]), data["Yhmv"], rtol=1e-9, atol=1e-9)
+        np.testing.assert_allclose(mf_mv(Fh, data["X"], trans="c"), data["Yhmvc"], rtol=1e-9, atol=1e-9)
+        np.testing.assert_allclose(mf_sv(Fh, data["X"]), data["Yhsv"], rtol=1e-9, atol=1e-9)
+        np.testing.assert_allclose(mf_sv(Fh, data["X"], trans="c"), data["Yhsvc"], rtol=1e-9, atol=1e-9)
+        np.testing.assert_allclose(mf_logdet(Fh), data["ldh"].ravel()[0], rtol=1e-9, atol=1e-9)
+
+        Fp = mf2(data["A"], n=4, occ=2, opts={"symm": "p"})
+        np.testing.assert_allclose(mf_mv(Fp, data["X"]), data["Ypmv"], rtol=1e-9, atol=1e-9)
+        np.testing.assert_allclose(mf_sv(Fp, data["X"]), data["Ypsv"], rtol=1e-9, atol=1e-9)
+        np.testing.assert_allclose(mf_cholmv(Fp, data["X"]), data["Cpmv"], rtol=1e-9, atol=1e-9)
+        np.testing.assert_allclose(mf_cholmv(Fp, data["X"], trans="c"), data["Cpmvc"], rtol=1e-9, atol=1e-9)
+        np.testing.assert_allclose(mf_cholsv(Fp, data["X"]), data["Cpsv"], rtol=1e-9, atol=1e-9)
+        np.testing.assert_allclose(mf_cholsv(Fp, data["X"], trans="c"), data["Cpsvc"], rtol=1e-9, atol=1e-9)
+        np.testing.assert_allclose(mf_logdet(Fp), data["ldp"].ravel()[0], rtol=1e-9, atol=1e-9)
 
     def test_hifde2_grid_operator(self):
         data = _run_flam_export(

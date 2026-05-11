@@ -128,10 +128,10 @@ bug instead of silently skipping.
 - [x] Implement true `mf3`.
 - [x] Implement true point-cloud `mfx`.
 - [x] Port factor block layout and level pointers to match MATLAB FLAM.
-- [ ] Port `mf_mv_nn`, `mf_mv_nc`, `mf_mv_h`, and `mf_mv_p` behavior.
-- [ ] Port `mf_sv_nn`, `mf_sv_nc`, `mf_sv_h`, and `mf_sv_p` behavior.
-- [ ] Port `mf_cholmv`, `mf_cholsv`, and `mf_logdet` to use hierarchical factors.
-- [ ] Add MATLAB parity for `mf2`, `mf3`, and `mfx`.
+- [x] Port `mf_mv_nn`, `mf_mv_nc`, `mf_mv_h`, and `mf_mv_p` behavior.
+- [x] Port `mf_sv_nn`, `mf_sv_nc`, `mf_sv_h`, and `mf_sv_p` behavior.
+- [x] Port `mf_cholmv`, `mf_cholsv`, and `mf_logdet` to use hierarchical factors.
+- [x] Add MATLAB parity for `mf2`, `mf3`, and `mfx`.
 - [ ] Add parity for real, complex, symmetric, Hermitian, positive-definite,
       transpose solve, and adjoint solve cases.
 - [ ] Keep dense/SciPy sparse fallback only as an explicit debug fallback, not
