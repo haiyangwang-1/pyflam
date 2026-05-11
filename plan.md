@@ -26,12 +26,12 @@ bug instead of silently skipping.
 
 ## 1. Lock The Parity Harness
 
-- [ ] Keep MATLAB parity tests non-skipping by default. Missing MATLAB, FLAM, or
+- [x] Keep MATLAB parity tests non-skipping by default. Missing MATLAB, FLAM, or
       ChunkIE should produce a clear failure.
 - [ ] Consolidate repeated MATLAB driver code in `tests/test_matlab_parity.py`
       into helper functions for writing scripts, running MATLAB, and loading
       `.mat` files.
-- [ ] Add helpers for logdet branch comparison modulo `2*pi*i`.
+- [x] Add helpers for logdet branch comparison modulo `2*pi*i`.
 - [ ] Add helpers for exporting FLAM factor metadata needed for structural
       comparisons: level pointers, factor counts, skeleton/redundant sizes,
       sparse correction nnz, and proxy-call evidence.
