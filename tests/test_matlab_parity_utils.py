@@ -4,7 +4,17 @@ from pathlib import Path
 
 import numpy as np
 
-from matlab_parity_utils import factor_metadata_code, load_factor_metadata, logdet_mod_error, matlab_path, relerr, require_paths
+from matlab_parity_utils import (
+    FLAM_MARKERS,
+    default_flam_reference,
+    factor_metadata_code,
+    load_factor_metadata,
+    logdet_mod_error,
+    matlab_path,
+    relerr,
+    require_flam_reference,
+    require_paths,
+)
 
 
 class MatlabParityUtilsTests(unittest.TestCase):
@@ -27,6 +37,18 @@ class MatlabParityUtilsTests(unittest.TestCase):
             missing = Path(tmp) / "missing"
             with self.assertRaisesRegex(RuntimeError, "test parity requires"):
                 require_paths(missing, label="test parity")
+
+    def test_require_flam_reference_reports_missing_entry_points(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            ref = Path(tmp)
+            with self.assertRaisesRegex(RuntimeError, "rskelf"):
+                require_flam_reference(ref, label="test parity")
+
+    def test_default_flam_reference_prefers_complete_checkout(self):
+        ref = default_flam_reference()
+
+        if ref.exists():
+            self.assertTrue(all((ref / marker).exists() for marker in FLAM_MARKERS))
 
     def test_factor_metadata_code_covers_common_factor_fields(self):
         code = factor_metadata_code("F", "meta")

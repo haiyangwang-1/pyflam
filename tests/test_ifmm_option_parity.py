@@ -3,7 +3,7 @@ import unittest
 
 import numpy as np
 
-from matlab_parity_utils import MATLAB, default_flam_reference, require_paths, run_matlab_export
+from matlab_parity_utils import MATLAB, default_flam_reference, require_flam_reference, require_paths, run_matlab_export
 from pyflam import ifmm, ifmm_mv
 
 
@@ -50,6 +50,7 @@ class IFMMOptionParityTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         require_paths(MATLAB, FLAM_REF, label="ifmm option parity")
+        require_flam_reference(FLAM_REF, label="ifmm option parity")
 
     def test_store_modes_match_matlab(self):
         for store in ("n", "s", "r", "a"):

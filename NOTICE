@@ -1,0 +1,24 @@
+PyFLAM Notices
+==============
+
+PyFLAM is a Python re-implementation of the public API and algorithms from
+FLAM, the Fast Linear Algebra in MATLAB package by Ken Ho.
+
+Upstream FLAM:
+https://github.com/klho/FLAM
+
+FLAM is distributed under the GNU General Public License version 3. PyFLAM is
+therefore distributed under GPL-3.0-or-later. See LICENSE for the full license
+text.
+
+PyFLAM's MATLAB parity tests and benchmark scripts also use ChunkIE reference
+checkouts for boundary-integral operator generation and comparison.
+
+Upstream ChunkIE:
+https://github.com/fastalgorithms/chunkie
+
+ChunkIE is not bundled in this repository. Any local ChunkIE checkout used for
+tests or benchmarks remains governed by its own upstream license and notices.
+
+This project is an independent re-implementation and is not endorsed by the
+upstream FLAM or ChunkIE projects.

@@ -1,10 +1,10 @@
 PyFLAM
 ======
 
-PyFLAM is a NumPy/SciPy Python port of the public API from
-[FLAM](https://github.com/klho/FLAM), centered on `hypoct`, `id`, `rskel`,
-`rskelf`, `ifmm`, `mf`, `hifie`, `hifde`, and their apply/solve/diagonal
-helpers.
+PyFLAM is Haiya's NumPy/SciPy re-implementation of the public API from Ken
+Ho's [FLAM](https://github.com/klho/FLAM), centered on `hypoct`, `id`,
+`rskel`, `rskelf`, `ifmm`, `mf`, `hifie`, `hifde`, and their
+apply/solve/diagonal helpers.
 
 The API intentionally follows the MATLAB function signatures, with one Python
 adaptation: matrix and proxy callbacks receive 0-based NumPy index arrays.
@@ -27,11 +27,14 @@ Use `uv` for the package environment:
 uv run python -m unittest discover -s tests -v
 ```
 
-Full MATLAB/FLAM/ChunkIE parity requires local reference checkouts:
+Full MATLAB/FLAM/ChunkIE parity requires MATLAB plus local reference checkouts.
+The test harness validates that `FLAM_REFERENCE` contains public entry points
+such as `rskelf/rskelf.m`, so incomplete helper checkouts fail early with a
+clear setup error.
 
 ```powershell
-$env:FLAM_REFERENCE='C:\Users\haiya\git\FLAM'
-$env:CHUNKIE_REFERENCE='C:\Users\haiya\git\chunkie'
+$env:FLAM_REFERENCE='<path-to-FLAM-checkout>'
+$env:CHUNKIE_REFERENCE='<path-to-ChunkIE-checkout>'
 uv run python scripts\run_tests_with_matlab_parity.py
 ```
 
@@ -39,4 +42,5 @@ See `docs/parity_callbacks_release.md` for parity, callback, logdet, and
 release-checklist details, and `docs/implementation_matrix.md` for the current
 implementation matrix.
 
-This project is GPL-3.0-or-later because it is a faithful port of GPLv3 FLAM.
+PyFLAM is GPL-3.0-or-later because it re-implements GPLv3 FLAM. See `NOTICE`
+for upstream attribution to FLAM and ChunkIE.

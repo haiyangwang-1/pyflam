@@ -14,7 +14,7 @@
 
 - Compact apply/solve kernels are faithful Python/NumPy/SciPy sweeps.
 - Profiling results are recorded in `docs/flam_operation_profiles.md` and
-  `benchmark_results/flam_operation_profiles.*`.
+  local ignored `benchmark_results/flam_operation_profiles.*` artifacts.
 - The current low-risk optimization pass removes repeated dtype discovery from
   selected-inversion block unfolding and `rskel_mv`.
 - Larger batching/JIT changes are deferred unless they can be made without

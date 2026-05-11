@@ -1,14 +1,39 @@
 [project]
 name = "pyflam"
-version = "0.1.0"
-description = "A minimal NumPy/SciPy port of core FLAM hierarchical matrix routines."
+version = "0.0.1"
+description = "A NumPy/SciPy re-implementation of Ken Ho's GPL FLAM hierarchical matrix routines."
 readme = "README.md"
 requires-python = ">=3.11"
 license = "GPL-3.0-or-later"
+license-files = ["LICENSE", "NOTICE"]
+authors = [
+    { name = "Haiya" },
+]
+keywords = [
+    "FLAM",
+    "hierarchical matrices",
+    "recursive skeletonization",
+    "multifrontal factorization",
+    "interpolative decomposition",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Mathematics",
+]
 dependencies = [
     "numpy>=1.26",
     "scipy>=1.11",
 ]
+
+[project.urls]
+"Upstream FLAM" = "https://github.com/klho/FLAM"
+"Upstream ChunkIE" = "https://github.com/fastalgorithms/chunkie"
 
 [build-system]
 requires = ["hatchling"]

@@ -23,7 +23,7 @@ import scipy.io
 from pyflam import rskelf, rskelf_logdet, rskelf_mv, rskelf_sv
 
 
-DEFAULT_MATLAB = Path(r"C:\Program Files\MATLAB\R2026a\bin\matlab.exe")
+DEFAULT_MATLAB = Path(os.environ.get("MATLAB", r"C:\Program Files\MATLAB\R2026a\bin\matlab.exe"))
 DEFAULT_CHUNKIE = Path(tempfile.gettempdir()) / "chunkie-reference"
 
 

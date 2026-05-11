@@ -7,34 +7,42 @@ FLAM, or ChunkIE should be treated as a failed environment setup, not as a
 silent skip.
 
 ```powershell
-$env:FLAM_REFERENCE='C:\Users\haiya\git\FLAM'
-$env:CHUNKIE_REFERENCE='C:\Users\haiya\git\chunkie'
+$env:FLAM_REFERENCE='<path-to-FLAM-checkout>'
+$env:CHUNKIE_REFERENCE='<path-to-ChunkIE-checkout>'
 uv run python scripts\run_tests_with_matlab_parity.py
 ```
+
+The harness validates that `FLAM_REFERENCE` contains the public entry-point
+files used by the parity suite, including `rskelf/rskelf.m`, `rskel/rskel.m`,
+`ifmm/ifmm.m`, `mf/mf2.m`, `hifie/hifie2.m`, and `hifde/hifde2.m`.
+This avoids opaque MATLAB errors from incomplete helper checkouts.
 
 The direct full-suite command is:
 
 ```powershell
-$env:FLAM_REFERENCE='C:\Users\haiya\git\FLAM'
-$env:CHUNKIE_REFERENCE='C:\Users\haiya\git\chunkie'
+$env:FLAM_REFERENCE='<path-to-FLAM-checkout>'
+$env:CHUNKIE_REFERENCE='<path-to-ChunkIE-checkout>'
 uv run python -m unittest discover -s tests -v
 ```
 
 Representative targeted parity commands:
 
 ```powershell
-$env:FLAM_REFERENCE='C:\Users\haiya\git\FLAM'
+$env:FLAM_REFERENCE='<path-to-FLAM-checkout>'
 uv run python -m unittest discover -s tests -p test_rskelf_option_parity.py -v -k diag
 uv run python -m unittest discover -s tests -p test_rskel_option_parity.py -v
 uv run python -m unittest discover -s tests -p test_ifmm_option_parity.py -v
 
-$env:CHUNKIE_REFERENCE='C:\Users\haiya\git\chunkie'
+$env:CHUNKIE_REFERENCE='<path-to-ChunkIE-checkout>'
 uv run python -m unittest discover -s tests -p test_matlab_parity.py -v
 uv run python -m unittest discover -s tests -p test_chunkie_rskelf_parity.py -v
 ```
 
 Do not launch multiple MATLAB parity jobs in parallel. MATLAB startup, path
 setup, and license/resource handling are more reliable serially.
+The shared MATLAB runner retries failed MATLAB subprocesses twice by default;
+set `PYFLAM_MATLAB_RETRIES=0` to disable retries when debugging a persistent
+reference failure.
 
 ## Callback Conventions
 
@@ -73,3 +81,5 @@ When validating complex factors manually, determinant equivalence through
   fallback, or unsupported status.
 - Record known upstream MATLAB reference failures as explicit notes in tests or
   docs; do not silently skip them.
+- Keep generated benchmark outputs under `benchmark_results/` local and
+  ignored; commit only curated benchmark summaries in `docs/`.

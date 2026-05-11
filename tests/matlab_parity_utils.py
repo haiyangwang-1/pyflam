@@ -5,13 +5,14 @@ from __future__ import annotations
 import os
 import subprocess
 import tempfile
+import time
 from pathlib import Path
 
 import numpy as np
 import scipy.io
 
 
-MATLAB = Path(r"C:\Program Files\MATLAB\R2026a\bin\matlab.exe")
+MATLAB = Path(os.environ.get("MATLAB", r"C:\Program Files\MATLAB\R2026a\bin\matlab.exe"))
 FLAM_MARKERS = (
     Path("rskelf") / "rskelf.m",
     Path("rskel") / "rskel.m",
@@ -34,6 +35,10 @@ def require_paths(*paths: Path, label: str = "MATLAB parity") -> None:
         raise RuntimeError(f"{label} requires: " + ", ".join(missing))
 
 
+def require_flam_reference(path: Path, label: str = "MATLAB parity") -> None:
+    require_paths(path, *(path / marker for marker in FLAM_MARKERS), label=f"{label} FLAM reference")
+
+
 def default_flam_reference() -> Path:
     """Return a FLAM checkout containing the public entry-point m-files."""
 
@@ -53,13 +58,25 @@ def default_flam_reference() -> Path:
 
 
 def run_matlab_script(script: Path, timeout: int = 120) -> None:
-    subprocess.run(
-        [str(MATLAB), "-batch", f"run('{script.as_posix()}')"],
-        check=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-        timeout=timeout,
+    attempts = max(1, int(os.environ.get("PYFLAM_MATLAB_RETRIES", "2")) + 1)
+    cmd = [str(MATLAB), "-batch", f"run('{script.as_posix()}')"]
+    result = None
+    for attempt in range(attempts):
+        result = subprocess.run(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            timeout=timeout,
+        )
+        if result.returncode == 0:
+            return
+        if attempt + 1 < attempts:
+            time.sleep(1.0)
+    assert result is not None
+    raise RuntimeError(
+        f"MATLAB script failed with exit code {result.returncode} after {attempts} attempts: {script}\n"
+        f"{result.stdout}"
     )
 
 

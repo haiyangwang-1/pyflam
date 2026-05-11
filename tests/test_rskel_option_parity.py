@@ -3,7 +3,7 @@ import unittest
 
 import numpy as np
 
-from matlab_parity_utils import MATLAB, default_flam_reference, require_paths, run_matlab_export
+from matlab_parity_utils import MATLAB, default_flam_reference, require_flam_reference, require_paths, run_matlab_export
 from pyflam import rskel, rskel_mv, rskel_xsp
 
 
@@ -50,6 +50,7 @@ class RSkelOptionParityTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         require_paths(MATLAB, FLAM_REF, label="rskel option parity")
+        require_flam_reference(FLAM_REF, label="rskel option parity")
 
     def test_unsymmetric_callback_matrix_access_matches_matlab(self):
         data = run_matlab_export(

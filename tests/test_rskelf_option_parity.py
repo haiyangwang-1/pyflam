@@ -3,7 +3,14 @@ import unittest
 
 import numpy as np
 
-from matlab_parity_utils import MATLAB, default_flam_reference, logdet_mod_error, require_paths, run_matlab_export
+from matlab_parity_utils import (
+    MATLAB,
+    default_flam_reference,
+    logdet_mod_error,
+    require_flam_reference,
+    require_paths,
+    run_matlab_export,
+)
 from pyflam import (
     rskelf,
     rskelf_cholmv,
@@ -62,6 +69,7 @@ class RSkelfOptionParityTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         require_paths(MATLAB, FLAM_REF, label="rskelf option parity")
+        require_flam_reference(FLAM_REF, label="rskelf option parity")
 
     def assert_factor_matches_matlab(self, data, symm, n, *, chol=False):
         x = np.linspace(0.0, 1.0, n).reshape(1, -1)

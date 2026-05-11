@@ -12,6 +12,7 @@ from matlab_parity_utils import (
     logdet_mod_error,
     matlab_path,
     relerr,
+    require_flam_reference,
     require_paths,
     run_matlab_export,
 )
@@ -19,13 +20,14 @@ from pyflam import rskelf, rskelf_logdet, rskelf_mv, rskelf_sv
 
 
 FLAM_REF = default_flam_reference()
-CHUNKIE_REF = Path(os.environ.get("CHUNKIE_REFERENCE", r"C:\Users\haiya\git\chunkie"))
+CHUNKIE_REF = Path(os.environ.get("CHUNKIE_REFERENCE", Path.home() / "git" / "chunkie"))
 
 
 class ChunkIEMoreRSkelfParityTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         require_paths(MATLAB, FLAM_REF, CHUNKIE_REF, label="ChunkIE rskelf parity")
+        require_flam_reference(FLAM_REF, label="ChunkIE rskelf parity")
 
     def test_laplace_dirichlet_l2scaled_starfish(self):
         self._run_case("laplace_d_l2scale")

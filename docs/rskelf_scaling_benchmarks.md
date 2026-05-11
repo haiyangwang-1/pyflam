@@ -21,6 +21,9 @@ Outputs:
 - `benchmark_results/rskelf_scaling.json`
 - `benchmark_results/rskelf_scaling.csv`
 
+The raw output files are local ignored artifacts and are not stored in git.
+Keep only curated benchmark summaries in `docs/`.
+
 ## Accuracy
 
 | N | mv vs MATLAB | solve vs MATLAB | mv vs dense | Py solve residual | MATLAB solve residual | logdet error |

@@ -225,16 +225,16 @@ bug instead of silently skipping.
 
 ## Final Acceptance Criteria
 
-- [ ] Public APIs match MATLAB FLAM signatures and semantics, with documented
+- [x] Public APIs match MATLAB FLAM signatures and semantics, with documented
       Python indexing conventions.
-- [ ] All representative upstream FLAM test families have Python parity tests.
-- [ ] At least four ChunkIE-style tests reconstruct operators in Python from
+- [x] All representative upstream FLAM test families have Python parity tests.
+- [x] At least four ChunkIE-style tests reconstruct operators in Python from
       geometry, quadrature corrections, kernels, and proxies.
-- [ ] `rskelf`, `rskel`, and `ifmm` operate from compact factors without dense
+- [x] `rskelf`, `rskel`, and `ifmm` operate from compact factors without dense
       matrix retention for callback factors.
-- [ ] `mf`, `hifie`, and `hifde` use true FLAM hierarchical fast algorithms by
+- [x] `mf`, `hifie`, and `hifde` use true FLAM hierarchical fast algorithms by
       default.
-- [ ] Diagonal extraction uses selected inversion, not identity-RHS solves.
-- [ ] Full test command passes with MATLAB/FLAM/ChunkIE parity enabled and no
+- [x] Diagonal extraction uses selected inversion, not identity-RHS solves.
+- [x] Full test command passes with MATLAB/FLAM/ChunkIE parity enabled and no
       parity skips.
-- [ ] Documentation accurately reflects the implementation.
+- [x] Documentation accurately reflects the implementation.

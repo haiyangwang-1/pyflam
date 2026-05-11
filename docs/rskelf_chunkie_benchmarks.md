@@ -10,6 +10,9 @@ uv run python scripts\benchmark_rskelf_parity.py --case single --nch 64 --k 16 -
 uv run python scripts\benchmark_rskelf_parity.py --case flamopdims --occ 128 --tol 1e-10 --out benchmark_results\rskelf_chunkie_flamopdims.json --timeout 2400
 ```
 
+The raw JSON output files are local ignored artifacts and are not stored in git.
+Keep only curated benchmark summaries in `docs/`.
+
 ## Results
 
 | Case | Matrix size | Py vs MATLAB matvec | Py vs MATLAB solve | Py solve residual | MATLAB solve residual |

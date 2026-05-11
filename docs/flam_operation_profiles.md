@@ -14,6 +14,9 @@ Outputs:
 - `benchmark_results/flam_operation_profiles.json`
 - `benchmark_results/flam_operation_profiles.csv`
 
+The raw output files are local ignored artifacts and are not stored in git.
+Keep only curated benchmark summaries in `docs/`.
+
 ## Timings
 
 | Family | Operation | N | Factors | Elapsed |

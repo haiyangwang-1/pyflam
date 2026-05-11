@@ -13,6 +13,7 @@ from matlab_parity_utils import (
     logdet_mod_error as _logdet_mod_error,
     matlab_path,
     relerr as _relerr,
+    require_flam_reference,
     require_paths,
     run_matlab_export,
 )
@@ -68,7 +69,7 @@ from pyflam import (
 
 
 FLAM_REF = default_flam_reference()
-CHUNKIE_REF = Path(os.environ.get("CHUNKIE_REFERENCE", Path(r"C:\Users\haiya\git\chunkie")))
+CHUNKIE_REF = Path(os.environ.get("CHUNKIE_REFERENCE", Path.home() / "git" / "chunkie"))
 
 
 def _run_flam_export(name: str, body: str, timeout: int = 120):
@@ -88,6 +89,7 @@ class MatlabParityTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         require_paths(MATLAB, FLAM_REF, label="MATLAB parity tests")
+        require_flam_reference(FLAM_REF, label="MATLAB parity tests")
 
     def test_hypoct_layout_and_permutation(self):
         data = _run_flam_export(
@@ -941,6 +943,7 @@ class ChunkIEStyleRSkelfParityTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         require_paths(MATLAB, FLAM_REF, CHUNKIE_REF, label="ChunkIE parity tests")
+        require_flam_reference(FLAM_REF, label="ChunkIE parity tests")
 
     def test_laplace_dirichlet_starfish_rskelf_callback(self):
         self._run_chunkie_rskelf_case("laplace_d")

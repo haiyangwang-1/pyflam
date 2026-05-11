@@ -21,6 +21,9 @@ Outputs:
 - `benchmark_results/selected_diag_scaling.json`
 - `benchmark_results/selected_diag_scaling.csv`
 
+The raw output files are local ignored artifacts and are not stored in git.
+Keep only curated benchmark summaries in `docs/`.
+
 ## Inverse Diagonal Results
 
 | Family | N | Identity RHS | Largest local block | Selected peak | Identity peak | Selected time | Identity time | Rel. error |
