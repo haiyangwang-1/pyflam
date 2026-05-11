@@ -8,11 +8,14 @@ from pathlib import Path
 import numpy as np
 import scipy.io
 
-from pyflam import rskelf, rskelf_mv, rskelf_sv
+from pyflam import ifmm, ifmm_mv, rskelf, rskelf_mv, rskelf_sv
 
 
 MATLAB = Path(r"C:\Program Files\MATLAB\R2026a\bin\matlab.exe")
-FLAM_REF = Path(os.environ.get("FLAM_REFERENCE", Path(tempfile.gettempdir()) / "flam-reference"))
+_DEFAULT_FLAM_REF = Path(tempfile.gettempdir()) / "flam-reference"
+if not _DEFAULT_FLAM_REF.exists():
+    _DEFAULT_FLAM_REF = Path(tempfile.gettempdir()) / "FLAM-ref"
+FLAM_REF = Path(os.environ.get("FLAM_REFERENCE", _DEFAULT_FLAM_REF))
 
 
 @unittest.skipUnless(
@@ -57,6 +60,61 @@ class MatlabParityTests(unittest.TestCase):
         F = rskelf(A, x, 3, 1e-10)
         np.testing.assert_allclose(rskelf_mv(F, X), data["Ymv"], rtol=1e-9, atol=1e-9)
         np.testing.assert_allclose(rskelf_sv(F, X), data["Ysv"], rtol=1e-9, atol=1e-9)
+
+    def test_ifmm_small_apply_and_adjoint(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "ifmm_parity.mat"
+            script = Path(tmp) / "run_ifmm_parity.m"
+            script.write_text(
+                textwrap.dedent(
+                    f"""
+                    addpath(genpath('{str(FLAM_REF).replace("'", "''")}'));
+                    rx = linspace(0,1,9);
+                    cx = linspace(0.05,0.95,7);
+                    A = @(i,j) 1./(1 + abs(reshape(rx(i),[],1) - reshape(cx(j),1,[])));
+                    X = reshape((0:20)/23,7,3);
+                    Z = reshape((0:26)/29,9,3);
+                    opts = struct('store','a','near',1,'symm','n');
+                    F = ifmm(A,rx,cx,3,1e-10,[],opts);
+                    Ymv = ifmm_mv(F,X);
+                    Yadj = ifmm_mv(F,Z,[],'c');
+                    P = F.P;
+                    Q = F.Q;
+                    lvpb = F.lvpb;
+                    lvpu = F.lvpu;
+                    nb = length(F.B);
+                    nu = length(F.U);
+                    Ad = A(1:length(rx),1:length(cx));
+                    save('{str(out).replace("'", "''")}','Ad','X','Z','Ymv','Yadj','P','Q','lvpb','lvpu','nb','nu');
+                    exit;
+                    """
+                )
+            )
+            subprocess.run(
+                [str(MATLAB), "-batch", f"run('{script.as_posix()}')"],
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                timeout=120,
+            )
+            data = scipy.io.loadmat(out)
+
+        A = data["Ad"]
+        X = data["X"]
+        Z = data["Z"]
+        rx = np.linspace(0.0, 1.0, 9).reshape(1, -1)
+        cx = np.linspace(0.05, 0.95, 7).reshape(1, -1)
+        F = ifmm(A, rx, cx, 3, 1e-10, opts={"store": "a", "near": 1})
+
+        np.testing.assert_array_equal(F.P, data["P"].ravel().astype(np.int64) - 1)
+        np.testing.assert_array_equal(F.Q, data["Q"].ravel().astype(np.int64) - 1)
+        np.testing.assert_array_equal(F.lvpb, data["lvpb"].ravel().astype(np.int64))
+        np.testing.assert_array_equal(F.lvpu, data["lvpu"].ravel().astype(np.int64))
+        self.assertEqual(len(F.B), int(data["nb"].ravel()[0]))
+        self.assertEqual(len(F.U), int(data["nu"].ravel()[0]))
+        np.testing.assert_allclose(ifmm_mv(F, X), data["Ymv"], rtol=1e-9, atol=1e-9)
+        np.testing.assert_allclose(ifmm_mv(F, Z, trans="c"), data["Yadj"], rtol=1e-9, atol=1e-9)
 
 
 if __name__ == "__main__":
