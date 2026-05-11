@@ -180,11 +180,11 @@ bug instead of silently skipping.
       selected-inversion implementation.
 - [x] Port `mf/spdiag/*` selected-inversion algorithms.
 - [x] Replace correctness-first `mf_diag` identity-RHS extraction.
-- [ ] Port `hifie/spdiag/*` selected-inversion algorithms.
+- [x] Port `hifie/spdiag/*` selected-inversion algorithms.
 - [x] Replace correctness-first `hifie_diag`.
-- [ ] Port `hifde/spdiag/*` selected-inversion algorithms.
+- [x] Port `hifde/spdiag/*` selected-inversion algorithms.
 - [x] Replace correctness-first `hifde_diag`.
-- [ ] Add MATLAB parity for diagonal and inverse diagonal extraction across
+- [x] Add MATLAB parity for diagonal and inverse diagonal extraction across
       unsymmetric, symmetric, Hermitian, and positive-definite modes.
 - [ ] Add memory/performance tests showing diagonal extraction no longer scales
       like solving against a full identity matrix.

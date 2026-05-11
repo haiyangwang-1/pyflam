@@ -24,6 +24,7 @@ from .rskelf import (
     RSkelFFactor,
     RSkelFFactorBlock,
     _rskelf_diag_unfold,
+    _rskelf_spdiag_sparse_from_info,
     rskelf_cholmv,
     rskelf_cholsv,
     rskelf_diag,
@@ -132,6 +133,8 @@ def hifde_diag(F: HIFDEFactor, dinv: bool | int = False, opts: dict[str, Any] | 
 
 
 def hifde_spdiag(F: HIFDEFactor, dinv: bool | int = False):
+    if F.backend.Si is not None and F.backend.Si.size == 0:
+        return _rskelf_spdiag_sparse_from_info(F.backend, dinv, *_hifde_spdiag_info(F.backend))
     return hifde_diag(F, dinv)
 
 
@@ -451,6 +454,53 @@ def _point_cell_blocks(A, tree, start: int, end: int, rem: np.ndarray, opts: dic
         T = np.zeros((sk.size, rd.size), dtype=A.dtype)
         blocks.append(_HIFDEBlock(slf=slf, sk=sk, rd=rd, T=T))
     return blocks
+
+
+def _hifde_spdiag_info(F: RSkelFFactor) -> tuple[np.ndarray, list[list[int]]]:
+    n = int(F.lvp[-1])
+    sp_t: list[set[int]] = [set() for _ in range(n)]
+    nbor: list[set[int]] = [set() for _ in range(n)]
+    prnt: list[set[int]] = [set() for _ in range(n)]
+    x: list[set[int]] = [set() for _ in range(F.N)]
+    rem = np.ones(F.N, dtype=bool)
+
+    for lvl in range(F.nlvl):
+        x_prev = [set(v) for v in x]
+        x = [set() for _ in range(F.N)]
+        for factor_idx in range(int(F.lvp[lvl]), int(F.lvp[lvl + 1])):
+            f = F.factors[factor_idx]
+            slf = np.concatenate((f.sk, f.rd))
+            if lvl == 0:
+                nbr = set().union(*(x[int(j)] for j in slf)) if slf.size else set()
+                for j in nbr:
+                    nbor[factor_idx].add(j)
+                    nbor[j].add(factor_idx)
+            else:
+                chld = set().union(*(x_prev[int(j)] for j in slf)) if slf.size else set()
+                for j in chld:
+                    prnt[j].add(factor_idx)
+            for j in slf:
+                x[int(j)].add(factor_idx)
+            if f.rd.size:
+                rem[f.rd] = False
+        if lvl > 0:
+            for idx in np.flatnonzero(rem):
+                if not x[int(idx)]:
+                    x[int(idx)] = set(x_prev[int(idx)])
+
+    leaf_for_index = -np.ones(F.N, dtype=np.int64)
+    for factor_idx in range(n - 1, -1, -1):
+        inherited = set()
+        for parent in prnt[factor_idx]:
+            inherited.update(sp_t[parent])
+        sp_t[factor_idx] = {factor_idx} | nbor[factor_idx] | inherited
+        f = F.factors[factor_idx]
+        slf = np.concatenate((f.sk, f.rd))
+        if slf.size:
+            leaf_for_index[slf] = factor_idx
+
+    leaves = np.unique(leaf_for_index[leaf_for_index >= 0])
+    return leaves.astype(np.int64), [sorted(sp_t[int(i)]) for i in leaves]
 
 
 def _point_separator_blocks(A, tree, dim_blocks, rem: np.ndarray, rank_or_tol, opts) -> list[_HIFDEBlock]:

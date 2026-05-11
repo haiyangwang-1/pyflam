@@ -21,6 +21,7 @@ from .rskelf import (
     RSkelFFactor,
     RSkelFFactorBlock,
     _rskelf_diag_unfold,
+    _rskelf_spdiag_sparse_from_info,
     rskelf,
     rskelf_cholmv,
     rskelf_cholsv,
@@ -176,6 +177,8 @@ def hifie_diag(F: HIFIEFactor, dinv: bool | int = False, opts: dict[str, Any] | 
 
 
 def hifie_spdiag(F: HIFIEFactor, dinv: bool | int = False):
+    if F.backend.Si is not None and F.backend.Si.size == 0:
+        return _rskelf_spdiag_sparse_from_info(F.backend, dinv, *_hifie_spdiag_info(F.backend))
     return hifie_diag(F, dinv)
 
 
@@ -336,6 +339,35 @@ def _hifie_base(A, x, occ, rank_or_tol, idfun, pxyfun, opts: dict[str, Any], dim
         Si=np.array([], dtype=np.int64),
         S=sp.csr_matrix((0, 0), dtype=M.dtype),
     )
+
+
+def _hifie_spdiag_info(F: RSkelFFactor) -> tuple[np.ndarray, list[list[int]]]:
+    n = int(F.lvp[-1])
+    sp_t: list[set[int]] = [set() for _ in range(n)]
+    x = -np.ones(F.N, dtype=np.int64)
+    for lvl in range(F.nlvl):
+        for factor_idx in range(int(F.lvp[lvl]), int(F.lvp[lvl + 1])):
+            f = F.factors[factor_idx]
+            slf = np.concatenate((f.sk, f.rd))
+            if lvl > 0 and slf.size:
+                child = np.unique(x[slf])
+                for j in child[child >= 0]:
+                    sp_t[int(j)].add(factor_idx)
+            if slf.size:
+                x[slf] = factor_idx
+
+    for factor_idx in range(n - 1, -1, -1):
+        inherited = set()
+        for parent in sp_t[factor_idx]:
+            inherited.update(sp_t[parent])
+        sp_t[factor_idx] = {factor_idx} | inherited
+        f = F.factors[factor_idx]
+        slf = np.concatenate((f.sk, f.rd))
+        if slf.size:
+            x[slf] = factor_idx
+
+    leaves = np.unique(x[x >= 0])
+    return leaves.astype(np.int64), [sorted(sp_t[int(i)]) for i in leaves]
 
 
 def _local_factor(Kself: np.ndarray, sk: np.ndarray, rd: np.ndarray, T: np.ndarray, symm: str):

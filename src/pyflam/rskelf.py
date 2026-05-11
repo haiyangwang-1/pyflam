@@ -404,10 +404,19 @@ def rskelf_spdiag(F: RSkelFFactor, dinv: bool | int = False) -> np.ndarray:
 
 def _rskelf_spdiag_sparse(F: RSkelFFactor, dinv: bool | int = False) -> np.ndarray:
     spinfo_i, spinfo_t = _rskelf_spdiag_info(F)
+    return _rskelf_spdiag_sparse_from_info(F, dinv, spinfo_i, spinfo_t)
+
+
+def _rskelf_spdiag_sparse_from_info(
+    F: RSkelFFactor,
+    dinv: bool | int,
+    spinfo_i: np.ndarray,
+    spinfo_t,
+) -> np.ndarray:
     D = np.zeros(F.N, dtype=_factor_dtype(F, np.array(0.0)))
     P = -np.ones(F.N, dtype=np.int64)
     for row_idx in range(spinfo_i.size - 1, -1, -1):
-        factor_ids = spinfo_t[row_idx]
+        factor_ids = np.asarray(spinfo_t[row_idx], dtype=np.int64)
         factor_ids = factor_ids[factor_ids >= 0]
         if factor_ids.size == 0:
             continue

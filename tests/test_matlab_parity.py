@@ -28,6 +28,7 @@ from pyflam import (
     hifde_diag,
     hifde_logdet,
     hifde_mv,
+    hifde_spdiag,
     hifde_sv,
     hifie2,
     hifie2x,
@@ -40,6 +41,7 @@ from pyflam import (
     hifie_idx,
     hifie_logdet,
     hifie_mv,
+    hifie_spdiag,
     hifie_sv,
     id,
     ifmm,
@@ -191,6 +193,8 @@ class MatlabParityTests(unittest.TestCase):
                     ld2 = hifie_logdet(F2);
                     D2 = hifie_diag(F2);
                     Di2 = hifie_diag(F2,1);
+                    SD2 = hifie_spdiag(F2);
+                    SDi2 = hifie_spdiag(F2,1);
                     lvp2 = F2.lvp; nf2 = length(F2.factors);
 
                     F2x = hifie2x(A2,x2,4,1e-10,[],struct('symm','n'));
@@ -217,7 +221,7 @@ class MatlabParityTests(unittest.TestCase):
                     Z3x = hifie_sv(F3x,X3,'t');
                     ld3x = hifie_logdet(F3x);
 
-                    save('__OUT__','A2','A3','x2','x3','X2','X3','Y2','Z2','ld2','D2','Di2','lvp2','nf2', ...
+                    save('__OUT__','A2','A3','x2','x3','X2','X3','Y2','Z2','ld2','D2','Di2','SD2','SDi2','lvp2','nf2', ...
                          'Y2x','Z2x','ld2x','Y3','Z3','ld3','Y3x','Z3x','ld3x');
                     exit;
             """,
@@ -233,6 +237,8 @@ class MatlabParityTests(unittest.TestCase):
         np.testing.assert_allclose(hifie_logdet(F2), data["ld2"].ravel()[0], rtol=1e-9, atol=1e-9)
         np.testing.assert_allclose(hifie_diag(F2), data["D2"].ravel(), rtol=1e-9, atol=1e-9)
         np.testing.assert_allclose(hifie_diag(F2, True), data["Di2"].ravel(), rtol=1e-9, atol=1e-9)
+        np.testing.assert_allclose(hifie_spdiag(F2), data["SD2"].ravel(), rtol=1e-9, atol=1e-9)
+        np.testing.assert_allclose(hifie_spdiag(F2, True), data["SDi2"].ravel(), rtol=1e-9, atol=1e-9)
 
         F2x = hifie2x(data["A2"], data["x2"], occ=4, rank_or_tol=1e-10)
         np.testing.assert_allclose(hifie_mv(F2x, data["X2"], trans="t"), data["Y2x"], rtol=1e-9, atol=1e-9)
@@ -829,7 +835,9 @@ class MatlabParityTests(unittest.TestCase):
                     ld = hifde_logdet(F);
                     D = hifde_diag(F);
                     Di = hifde_diag(F,1);
-                    save('__OUT__','A','X','Ymv','Ysv','ld','D','Di');
+                    SD = hifde_spdiag(F);
+                    SDi = hifde_spdiag(F,1);
+                    save('__OUT__','A','X','Ymv','Ysv','ld','D','Di','SD','SDi');
                     exit;
             """,
         )
@@ -840,6 +848,8 @@ class MatlabParityTests(unittest.TestCase):
         np.testing.assert_allclose(hifde_logdet(F), data["ld"].ravel()[0], rtol=1e-9, atol=1e-9)
         np.testing.assert_allclose(hifde_diag(F), data["D"].ravel(), rtol=1e-9, atol=1e-9)
         np.testing.assert_allclose(hifde_diag(F, True), data["Di"].ravel(), rtol=1e-9, atol=1e-9)
+        np.testing.assert_allclose(hifde_spdiag(F), data["SD"].ravel(), rtol=1e-9, atol=1e-9)
+        np.testing.assert_allclose(hifde_spdiag(F, True), data["SDi"].ravel(), rtol=1e-9, atol=1e-9)
 
     def test_hifde_entry_points_match_matlab(self):
         data = _run_flam_export(
