@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import Any
+import warnings
 
 import numpy as np
 import scipy.linalg as la
@@ -137,7 +138,8 @@ def mf_logdet(F: MFFactor):
         return 2 * np.sum(np.log(np.diag(F.chol).astype(np.result_type(F.chol, complex))))
     if F.splu is not None:
         diag_u = F.splu.U.diagonal()
-        ld = np.sum(np.log(diag_u.astype(np.result_type(diag_u, complex))))
+        with np.errstate(divide="ignore", invalid="ignore"):
+            ld = np.sum(np.log(diag_u.astype(np.result_type(diag_u, complex))))
         ld += np.log(np.asarray(detperm(F.splu.perm_r), dtype=complex))
         ld += np.log(np.asarray(detperm(F.splu.perm_c), dtype=complex))
         return float(ld.real) + 1j * float(np.mod(ld.imag, 2 * np.pi))
@@ -148,7 +150,8 @@ def mf_logdet(F: MFFactor):
         else:
             diag_u = np.diag(block.U)
         sign = detperm(block.p)
-        ld = np.sum(np.log(diag_u.astype(np.result_type(diag_u, complex))))
+        with np.errstate(divide="ignore", invalid="ignore"):
+            ld = np.sum(np.log(diag_u.astype(np.result_type(diag_u, complex))))
         return ld + np.log(np.asarray(sign, dtype=complex))
     if F.A_dense is None:
         raise ValueError("factor does not contain matrix data")
@@ -226,18 +229,29 @@ def _make_factor(A, N: int, opts: dict[str, Any], tree: Any = None) -> MFFactor:
             L=chol,
         )
     elif A_sparse is not None:
-        splu = spla.splu(A_sparse.tocsc())
-        lu = None
+        try:
+            splu = spla.splu(A_sparse.tocsc())
+            lu = None
+            L = splu.L
+            U = splu.U
+            p = np.asarray(splu.perm_r, dtype=np.int64)
+        except RuntimeError as exc:
+            if "singular" not in str(exc).lower():
+                raise
+            A_dense = np.asarray(A_sparse.toarray())
+            lu = _lu_factor_allow_singular(A_dense)
+            L, U, p = _lu_block(lu, N)
+            splu = None
         chol = None
         block = MFFactorBlock(
             sk=np.array([], dtype=np.int64),
             rd=np.arange(N, dtype=np.int64),
-            L=splu.L,
-            U=splu.U,
-            p=np.asarray(splu.perm_r, dtype=np.int64),
+            L=L,
+            U=U,
+            p=p,
         )
     else:
-        lu = la.lu_factor(A_dense)
+        lu = _lu_factor_allow_singular(A_dense)
         L, U, p = _lu_block(lu, N)
         chol = None
         block = MFFactorBlock(
@@ -286,6 +300,12 @@ def _sparse_apply(A: sp.spmatrix, X: np.ndarray, trans: str) -> np.ndarray:
     if trans == "t":
         return A.T @ X
     return A.conj().T @ X
+
+
+def _lu_factor_allow_singular(A: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", la.LinAlgWarning)
+        return la.lu_factor(A)
 
 
 def _lu_block(lu: tuple[np.ndarray, np.ndarray], n: int) -> tuple[np.ndarray, np.ndarray, np.ndarray]:

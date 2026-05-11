@@ -116,7 +116,7 @@ bug instead of silently skipping.
       rank-deficient matrices.
 - [x] Add nontrivial callable `stop` tests for partial `rskelf`.
 - [x] Cover complex sparse LU logdet and transpose/adjoint solves in `mf`.
-- [ ] Add sparse singular/near-singular failure-mode tests where MATLAB FLAM has
+- [x] Add sparse singular/near-singular failure-mode tests where MATLAB FLAM has
       defined behavior.
 
 ## 7. Implement True FLAM `mf`

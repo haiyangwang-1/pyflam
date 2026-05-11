@@ -5,6 +5,7 @@ import unittest
 from pathlib import Path
 
 import numpy as np
+import scipy.sparse as sp
 import scipy.special
 
 from matlab_parity_utils import (
@@ -358,6 +359,50 @@ class MatlabParityTests(unittest.TestCase):
         np.testing.assert_allclose(mf_logdet(F), data["ld"].ravel()[0], rtol=1e-9, atol=1e-9)
         np.testing.assert_allclose(mf_diag(F), data["D"].ravel(), rtol=1e-9, atol=1e-9)
         np.testing.assert_allclose(mf_diag(F, True), data["Di"].ravel(), rtol=1e-9, atol=1e-9)
+
+    def test_mf2_sparse_singular_and_near_singular_modes(self):
+        data = _run_flam_export(
+            "mf2_sparse_singular_modes",
+            """
+                    A0 = sparse(0);
+                    X0 = 1;
+                    warn_state = warning('off','all');
+                    F0 = mf2(A0,2,2,struct('symm','n'));
+                    Ymv0 = mf_mv(F0,X0);
+                    Ysv0 = mf_sv(F0,X0);
+                    ld0 = mf_logdet(F0);
+                    D0 = mf_diag(F0);
+                    Di0 = mf_diag(F0,1);
+
+                    tiny = 1e-14;
+                    A1 = spdiags([1;2;tiny;4],0,4,4);
+                    X1 = reshape((1:8)/11,4,2);
+                    F1 = mf2(A1,3,2,struct('symm','n'));
+                    Ymv1 = mf_mv(F1,X1);
+                    Ysv1 = mf_sv(F1,X1);
+                    ld1 = mf_logdet(F1);
+                    D1 = mf_diag(F1);
+                    Di1 = mf_diag(F1,1);
+                    warning(warn_state);
+                    save('__OUT__','A1','X0','Ymv0','Ysv0','ld0','D0','Di0', ...
+                         'X1','Ymv1','Ysv1','ld1','D1','Di1');
+                    exit;
+            """,
+        )
+
+        F0 = mf2(sp.csc_matrix((1, 1), dtype=float), n=2, occ=2)
+        np.testing.assert_allclose(mf_mv(F0, data["X0"]), data["Ymv0"], rtol=1e-12, atol=1e-12)
+        np.testing.assert_allclose(mf_sv(F0, data["X0"]), data["Ysv0"], rtol=1e-12, atol=1e-12)
+        np.testing.assert_allclose(mf_logdet(F0), data["ld0"].ravel()[0], rtol=1e-12, atol=1e-12)
+        np.testing.assert_allclose(mf_diag(F0), data["D0"].ravel(), rtol=1e-12, atol=1e-12)
+        np.testing.assert_allclose(mf_diag(F0, True), data["Di0"].ravel(), rtol=1e-12, atol=1e-12)
+
+        F1 = mf2(data["A1"], n=3, occ=2)
+        np.testing.assert_allclose(mf_mv(F1, data["X1"]), data["Ymv1"], rtol=1e-12, atol=1e-12)
+        np.testing.assert_allclose(mf_sv(F1, data["X1"]), data["Ysv1"], rtol=1e-8, atol=1e-8)
+        np.testing.assert_allclose(mf_logdet(F1), data["ld1"].ravel()[0], rtol=1e-12, atol=1e-12)
+        np.testing.assert_allclose(mf_diag(F1), data["D1"].ravel(), rtol=1e-12, atol=1e-12)
+        np.testing.assert_allclose(mf_diag(F1, True), data["Di1"].ravel(), rtol=1e-8, atol=1e-8)
 
     def test_hifde2_grid_operator(self):
         data = _run_flam_export(
