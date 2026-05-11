@@ -22,6 +22,32 @@ def _rect_kernel(rx, cx):
     return 1.0 / (1.0 + np.abs(rx - cx)) + 0.02 * (rx + 2.0 * cx)
 
 
+def _rect_proxy_callbacks(rx, cx):
+    calls = {"matrix": 0, "row_proxy": 0, "col_proxy": 0}
+
+    def Afun(i, j):
+        i = np.asarray(i, dtype=np.int64).reshape(-1)
+        j = np.asarray(j, dtype=np.int64).reshape(-1)
+        calls["matrix"] += 1
+        return _rect_kernel(rx[i], cx[j])
+
+    def pxyfun(rc, rx_arg, cx_arg, slf, nbr, l, ctr):
+        slf = np.asarray(slf, dtype=np.int64).reshape(-1)
+        nbr = np.asarray(nbr, dtype=np.int64).reshape(-1)
+        width = float(np.asarray(l).reshape(-1)[0])
+        center = float(np.asarray(ctr).reshape(-1)[0])
+        proxy = center + width * np.array([-1.75, -1.25, 1.25, 1.75])
+        if rc == "r":
+            calls["row_proxy"] += 1
+            nbr = nbr[np.abs(cx[nbr] - center) <= 1.25 * width]
+            return _rect_kernel(rx[slf], proxy), nbr
+        calls["col_proxy"] += 1
+        nbr = nbr[np.abs(rx[nbr] - center) <= 1.25 * width]
+        return _rect_kernel(proxy, cx[slf]), nbr
+
+    return Afun, pxyfun, calls
+
+
 class RSkelOptionParityTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -244,6 +270,81 @@ class RSkelOptionParityTests(unittest.TestCase):
         F = rskel(data["Ad"], rx, cx, occ=3, rank_or_tol=1e-10, opts={"symm": "n"})
 
         self.assertEqual(F.symm, "n")
+        np.testing.assert_array_equal(F.P, data["P"].ravel().astype(np.int64) - 1)
+        np.testing.assert_array_equal(F.Q, data["Q"].ravel().astype(np.int64) - 1)
+        np.testing.assert_array_equal(F.lvpd, data["lvpd"].ravel().astype(np.int64))
+        np.testing.assert_array_equal(F.lvpu, data["lvpu"].ravel().astype(np.int64))
+        self.assertEqual(len(F.D), int(data["nd"].ravel()[0]))
+        self.assertEqual(len(F.U), int(data["nu"].ravel()[0]))
+        np.testing.assert_allclose(rskel_mv(F, data["X"]), data["Ymv"], rtol=1e-9, atol=1e-9)
+        np.testing.assert_allclose(rskel_mv(F, data["Z"], trans="c"), data["Yadj"], rtol=1e-9, atol=1e-9)
+
+    def test_proxy_row_and_column_paths_match_matlab(self):
+        data = run_matlab_export(
+            "rskel_proxy_paths",
+            textwrap.dedent(
+                f"""
+                addpath(genpath('{str(FLAM_REF).replace("'", "''")}'));
+                global PYFLAM_RSKEL_ROW_PROXY_CALLS PYFLAM_RSKEL_COL_PROXY_CALLS;
+                PYFLAM_RSKEL_ROW_PROXY_CALLS = 0;
+                PYFLAM_RSKEL_COL_PROXY_CALLS = 0;
+                m = 18;
+                n = 15;
+                rx = linspace(0,1,m);
+                cx = linspace(0.04,0.94,n);
+                A = @(i,j) rect_kernel_(reshape(rx(i),[],1),reshape(cx(j),1,[]));
+                pxyfun = @(rc,rx,cx,slf,nbr,l,ctr) pxyfun_(rc,rx,cx,slf,nbr,l,ctr);
+                X = reshape((0:(2*n-1))/23,n,2);
+                Z = reshape((0:(2*m-1))/29,m,2);
+                F = rskel(A,rx,cx,3,1e-10,pxyfun,struct('symm','n'));
+                Ymv = rskel_mv(F,X);
+                Yadj = rskel_mv(F,Z,'c');
+                P = F.P;
+                Q = F.Q;
+                lvpd = F.lvpd;
+                lvpu = F.lvpu;
+                nd = length(F.D);
+                nu = length(F.U);
+                row_proxy_calls = PYFLAM_RSKEL_ROW_PROXY_CALLS;
+                col_proxy_calls = PYFLAM_RSKEL_COL_PROXY_CALLS;
+                save('__OUT__','X','Z','Ymv','Yadj','P','Q','lvpd','lvpu','nd','nu', ...
+                     'row_proxy_calls','col_proxy_calls');
+                exit;
+
+                function K = rect_kernel_(rx,cx)
+                  K = 1./(1 + abs(rx - cx)) + 0.02*(rx + 2*cx);
+                end
+
+                function [Kpxy,nbr] = pxyfun_(rc,rx,cx,slf,nbr,l,ctr)
+                  global PYFLAM_RSKEL_ROW_PROXY_CALLS PYFLAM_RSKEL_COL_PROXY_CALLS;
+                  proxy = ctr + l*[-1.75 -1.25 1.25 1.75];
+                  if rc == 'r'
+                    PYFLAM_RSKEL_ROW_PROXY_CALLS = PYFLAM_RSKEL_ROW_PROXY_CALLS + 1;
+                    keep = abs(cx(nbr) - ctr) <= 1.25*l;
+                    nbr = nbr(keep);
+                    Kpxy = rect_kernel_(reshape(rx(slf),[],1),reshape(proxy,1,[]));
+                  else
+                    PYFLAM_RSKEL_COL_PROXY_CALLS = PYFLAM_RSKEL_COL_PROXY_CALLS + 1;
+                    keep = abs(rx(nbr) - ctr) <= 1.25*l;
+                    nbr = nbr(keep);
+                    Kpxy = rect_kernel_(reshape(proxy,[],1),reshape(cx(slf),1,[]));
+                  end
+                end
+                """
+            ),
+        )
+
+        rx = np.linspace(0.0, 1.0, 18)
+        cx = np.linspace(0.04, 0.94, 15)
+        Afun, pxyfun, calls = _rect_proxy_callbacks(rx, cx)
+        F = rskel(Afun, rx.reshape(1, -1), cx.reshape(1, -1), occ=3, rank_or_tol=1e-10, pxyfun=pxyfun)
+
+        self.assertIsNone(F.A_dense)
+        self.assertGreater(calls["matrix"], 0)
+        self.assertGreater(calls["row_proxy"], 0)
+        self.assertGreater(calls["col_proxy"], 0)
+        self.assertGreater(int(data["row_proxy_calls"].ravel()[0]), 0)
+        self.assertGreater(int(data["col_proxy_calls"].ravel()[0]), 0)
         np.testing.assert_array_equal(F.P, data["P"].ravel().astype(np.int64) - 1)
         np.testing.assert_array_equal(F.Q, data["Q"].ravel().astype(np.int64) - 1)
         np.testing.assert_array_equal(F.lvpd, data["lvpd"].ravel().astype(np.int64))

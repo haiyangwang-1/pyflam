@@ -88,7 +88,7 @@ bug instead of silently skipping.
 - [x] Add MATLAB parity for `symm='p'` and confirm MATLAB semantics map to the
       Python factor mode.
 - [x] Add complex rectangular cases.
-- [ ] Add proxy-callback parity for row and column proxy paths.
+- [x] Add proxy-callback parity for row and column proxy paths.
 - [ ] Add full `rskel_xsp` parity for symmetric/Hermitian/positive cases.
 - [ ] Verify `rskel_mv` for `trans='n'`, `'t'`, and `'c'`.
 - [ ] Ensure callback-based factors avoid eager dense materialization.
