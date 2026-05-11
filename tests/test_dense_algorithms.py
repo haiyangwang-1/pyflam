@@ -22,6 +22,10 @@ class DenseAlgorithmTests(unittest.TestCase):
 
     def test_rskel_mv_matches_dense(self):
         F = rskel(self.Afun, self.x, self.x, occ=3, rank_or_tol=1e-10)
+        self.assertGreater(len(F.D), 0)
+        self.assertGreater(len(F.U), 0)
+        self.assertEqual(F.lvpd[-1], len(F.D))
+        self.assertEqual(F.lvpu[-1], len(F.U))
         np.testing.assert_allclose(rskel_mv(F, self.X), self.A @ self.X)
         np.testing.assert_allclose(rskel_mv(F, self.X, "c"), self.A.conj().T @ self.X)
         Xsp, p, q = rskel_xsp(F)
@@ -30,14 +34,24 @@ class DenseAlgorithmTests(unittest.TestCase):
         np.testing.assert_array_equal(q, np.arange(8))
 
     def test_ifmm_mv_matches_dense(self):
-        F = ifmm(self.Afun, self.x, self.x, occ=3, rank_or_tol=1e-10, opts={"store": "a"})
+        F = ifmm(self.Afun, self.x, self.x, occ=3, rank_or_tol=1e-10, opts={"store": "a", "near": 1})
+        self.assertGreater(len(F.B), 0)
+        self.assertEqual(F.lvpb[-1], len(F.B))
+        self.assertEqual(F.lvpu[-1], len(F.U))
         np.testing.assert_allclose(ifmm_mv(F, self.X), self.A @ self.X)
         np.testing.assert_allclose(ifmm_mv(F, self.X, trans="t"), self.A.T @ self.X)
 
     def test_rskelf_mv_sv_logdet_match_dense(self):
         F = rskelf(self.Afun, self.x, occ=3, rank_or_tol=1e-10)
+        self.assertGreater(len(F.factors), 0)
+        self.assertEqual(F.lvp[-1], len(F.factors))
+        for factor in F.factors:
+            self.assertGreater(factor.rd.size, 0)
+            self.assertEqual(factor.T.shape[1], factor.rd.size)
         np.testing.assert_allclose(rskelf_mv(F, self.X), self.A @ self.X)
+        np.testing.assert_allclose(rskelf_mv(F, self.X, "c"), self.A.conj().T @ self.X)
         np.testing.assert_allclose(rskelf_sv(F, self.X), np.linalg.solve(self.A, self.X))
+        np.testing.assert_allclose(rskelf_sv(F, self.X, "c"), np.linalg.solve(self.A.conj().T, self.X))
         self.assertAlmostEqual(rskelf_logdet(F), np.linalg.slogdet(self.A)[1])
 
     def test_rskelf_positive_definite(self):

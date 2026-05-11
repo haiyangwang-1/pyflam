@@ -8,8 +8,20 @@ from typing import Any
 import numpy as np
 import scipy.linalg as la
 
-from ._matrix import apply_transpose, materialize
-from .core import StructMixin, _as_points, _normalise_opts, chksymm, chktrans, hypoct
+from ._matrix import apply_transpose, materialize, submatrix
+from .core import StructMixin, _as_points, _normalise_opts, chksymm, chktrans, detperm, hypoct, id
+
+
+@dataclass
+class RSkelFFactorBlock(StructMixin):
+    sk: np.ndarray
+    rd: np.ndarray
+    T: np.ndarray
+    L: np.ndarray
+    U: np.ndarray | None = None
+    p: np.ndarray | None = None
+    E: np.ndarray | None = None
+    F: np.ndarray | None = None
 
 
 @dataclass
@@ -17,7 +29,7 @@ class RSkelFFactor(StructMixin):
     N: int
     nlvl: int
     lvp: np.ndarray
-    factors: list[Any] = field(default_factory=list)
+    factors: list[RSkelFFactorBlock] = field(default_factory=list)
     symm: str = "n"
     A_dense: np.ndarray | None = None
     lu: tuple[np.ndarray, np.ndarray] | None = None
@@ -26,6 +38,35 @@ class RSkelFFactor(StructMixin):
     opts: dict[str, Any] = field(default_factory=dict)
     Si: np.ndarray | None = None
     S: np.ndarray | None = None
+
+
+def _stop_fun(stop):
+    if stop is None:
+        return lambda lvl, l: False
+    if callable(stop):
+        return stop
+    if np.isinf(stop):
+        return lambda lvl, l: False
+    return lambda lvl, l: lvl >= stop
+
+
+def _concat_indices(parts: list[np.ndarray]) -> np.ndarray:
+    parts = [np.asarray(p, dtype=np.int64).reshape(-1) for p in parts if np.asarray(p).size]
+    return np.concatenate(parts) if parts else np.array([], dtype=np.int64)
+
+
+def _lu_vector(A: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Return MATLAB-style ``L, U, p`` with ``A[p, :] = L @ U``."""
+
+    lu, piv = la.lu_factor(A)
+    n = A.shape[0]
+    L = np.tril(lu, -1) + np.eye(n, dtype=lu.dtype)
+    U = np.triu(lu)
+    p = np.arange(n, dtype=np.int64)
+    for i, j in enumerate(piv):
+        if i != j:
+            p[[i, j]] = p[[j, i]]
+    return L, U, p
 
 
 def rskelf(A, x, occ, rank_or_tol, pxyfun=None, opts=None) -> RSkelFFactor:
@@ -44,46 +85,183 @@ def rskelf(A, x, occ, rank_or_tol, pxyfun=None, opts=None) -> RSkelFFactor:
     N = x.shape[1]
     tree = hypoct(x, occ, o["lvlmax"], o["ext"])
     A_dense = materialize(A, N, N)
+
+    rem = np.ones(N, dtype=bool)
+    modified: list[np.ndarray | None] = [None for _ in tree.nodes]
+    modified_idx: list[np.ndarray | None] = [None for _ in tree.nodes]
+    factors: list[RSkelFFactorBlock] = []
+    lvp = [0]
+    stop = _stop_fun(o["stop"])
+
+    for lvl in range(tree.nlvl - 1, -1, -1):
+        node_size = tree.l[:, lvl]
+        if stop(tree.nlvl - 1 - lvl, node_size):
+            break
+
+        for node_idx in range(tree.lvp[lvl], tree.lvp[lvl + 1]):
+            node = tree.nodes[node_idx]
+            child_xi = _concat_indices([tree.nodes[ch].xi for ch in node.chld])
+            if child_xi.size:
+                node.xi = np.concatenate((node.xi, child_xi)) if node.xi.size else child_xi
+
+        for node_idx in range(tree.lvp[lvl], tree.lvp[lvl + 1]):
+            node = tree.nodes[node_idx]
+            slf = np.asarray(node.xi, dtype=np.int64)
+            if slf.size == 0:
+                modified[node_idx] = np.zeros((0, 0), dtype=A_dense.dtype)
+                modified_idx[node_idx] = slf
+                continue
+
+            nbr = _concat_indices([tree.nodes[j].xi for j in node.nbor])
+            nslf = slf.size
+            M = np.zeros((nslf, nslf), dtype=A_dense.dtype)
+            if lvl < tree.nlvl - 1 and node.chld:
+                pos = {int(v): k for k, v in enumerate(slf)}
+                for ch in node.chld:
+                    child_M = modified[ch]
+                    child_idx = modified_idx[ch]
+                    if child_M is None or child_idx is None or child_idx.size == 0:
+                        continue
+                    loc = np.array([pos[int(v)] for v in child_idx], dtype=np.int64)
+                    M[np.ix_(loc, loc)] = child_M
+                    modified[ch] = None
+                    modified_idx[ch] = None
+
+            Kpxy = np.zeros((0, nslf), dtype=A_dense.dtype)
+            if lvl + 1 > 2:
+                if pxyfun is None:
+                    nbr = np.setdiff1d(np.flatnonzero(rem), slf, assume_unique=False)
+                else:
+                    Kpxy, nbr = pxyfun(x, slf, nbr, node_size, node.ctr)
+                    Kpxy = np.asarray(Kpxy)
+                    nbr = np.asarray(nbr, dtype=np.int64)
+
+            K = submatrix(A, nbr, slf) if nbr.size else np.zeros((0, nslf), dtype=A_dense.dtype)
+            if o["symm"] == "n":
+                K2 = submatrix(A, slf, nbr).conj().T if nbr.size else np.zeros((0, nslf), dtype=A_dense.dtype)
+                K = np.vstack((K, K2))
+            if Kpxy.size:
+                K = np.vstack((K, Kpxy))
+
+            sk, rd, T = id(K, rank_or_tol, o["Tmax"], o["rrqr_iter"])
+            if rd.size == 0:
+                modified[node_idx] = M
+                modified_idx[node_idx] = slf
+                continue
+
+            Kself = submatrix(A, slf, slf) + M
+            if o["symm"] == "s":
+                Kself[rd, :] = Kself[rd, :] - T.T @ Kself[sk, :]
+            else:
+                Kself[rd, :] = Kself[rd, :] - T.conj().T @ Kself[sk, :]
+            Kself[:, rd] = Kself[:, rd] - Kself[:, sk] @ T
+
+            Krr = Kself[np.ix_(rd, rd)]
+            Ksr = Kself[np.ix_(sk, rd)]
+            Krs = Kself[np.ix_(rd, sk)]
+
+            Ufac = None
+            p = None
+            E = None
+            G = None
+            if o["symm"] == "p":
+                L = np.linalg.cholesky(Krr)
+                E = la.solve_triangular(L, Ksr.conj().T, lower=True).conj().T
+                schur = E @ E.conj().T
+            elif o["symm"] == "h":
+                L, D, perm = la.ldl(Krr, lower=True, hermitian=True)
+                p = np.asarray(perm, dtype=np.int64)
+                Ufac = D
+                schur = Ksr @ la.solve(Krr, Krs, assume_a="her")
+            else:
+                L, Umat, p = _lu_vector(Krr)
+                Ufac = Umat
+                E = la.solve_triangular(Umat.T, Ksr.T, lower=True).T
+                G = la.solve_triangular(L, Krs[p, :], lower=True, unit_diagonal=True)
+                schur = E @ G
+
+            Mnext = M[np.ix_(sk, sk)] - schur
+            modified[node_idx] = Mnext
+            modified_idx[node_idx] = slf[sk]
+
+            factors.append(
+                RSkelFFactorBlock(
+                    sk=slf[sk],
+                    rd=slf[rd],
+                    T=T,
+                    L=L,
+                    U=Ufac,
+                    p=p,
+                    E=E,
+                    F=G,
+                )
+            )
+            node.xi = slf[sk]
+            rem[slf[rd]] = False
+
+        lvp.append(len(factors))
+
+    remaining = np.flatnonzero(rem)
+    S = np.zeros((remaining.size, remaining.size), dtype=A_dense.dtype)
+    if remaining.size:
+        pos = {int(v): k for k, v in enumerate(remaining)}
+        for M, idx in zip(modified, modified_idx):
+            if M is None or idx is None or idx.size == 0:
+                continue
+            loc = np.array([pos[int(v)] for v in idx if int(v) in pos], dtype=np.int64)
+            if loc.size == idx.size:
+                S[np.ix_(loc, loc)] += M
+
     lu = None
     chol = None
     if o["symm"] == "p":
-        chol = la.cholesky(A_dense, lower=True)
-    else:
+        chol = np.linalg.cholesky(A_dense)
+    elif o["symm"] != "n" or remaining.size:
         lu = la.lu_factor(A_dense)
     return RSkelFFactor(
         N=N,
-        nlvl=tree.nlvl,
-        lvp=np.zeros(tree.nlvl + 1, dtype=np.int64),
+        nlvl=len(lvp) - 1,
+        lvp=np.asarray(lvp, dtype=np.int64),
+        factors=factors,
         symm=o["symm"],
         A_dense=A_dense,
         lu=lu,
         chol=chol,
         tree=tree,
         opts=o,
-        Si=np.arange(N, dtype=np.int64),
-        S=np.zeros((N, N), dtype=A_dense.dtype),
+        Si=remaining,
+        S=S,
     )
 
 
 def rskelf_mv(F: RSkelFFactor, X, trans: str = "n") -> np.ndarray:
     trans = chktrans(trans)
-    if F.A_dense is None:
-        raise ValueError("factor does not contain matrix data")
-    X = np.asarray(X)
+    if trans == "t":
+        return np.conj(rskelf_mv(F, np.conj(X), "c"))
+    X = _prepare_rhs(F, X)
     one_dim = X.ndim == 1
     if one_dim:
         X = X[:, None]
-    Y = apply_transpose(F.A_dense, X, trans)
+    if F.symm == "n" and F.Si is not None and F.Si.size == 0:
+        Y = _rskelf_mv_nn(F, X) if trans == "n" else _rskelf_mv_nc(F, X)
+    else:
+        if F.A_dense is None:
+            raise ValueError("factor does not contain matrix data")
+        Y = apply_transpose(F.A_dense, X, trans)
     return Y[:, 0] if one_dim else Y
 
 
 def rskelf_sv(F: RSkelFFactor, X, trans: str = "n") -> np.ndarray:
     trans = chktrans(trans)
-    X = np.asarray(X)
+    if trans == "t":
+        return np.conj(rskelf_sv(F, np.conj(X), "c"))
+    X = _prepare_rhs(F, X)
     one_dim = X.ndim == 1
     if one_dim:
         X = X[:, None]
-    if F.chol is not None:
+    if F.symm == "n" and F.Si is not None and F.Si.size == 0:
+        Y = _rskelf_sv_nn(F, X) if trans == "n" else _rskelf_sv_nc(F, X)
+    elif F.chol is not None:
         if trans == "n":
             Y = la.cho_solve((F.chol, True), X)
         elif trans == "t":
@@ -103,14 +281,95 @@ def rskelf_sv(F: RSkelFFactor, X, trans: str = "n") -> np.ndarray:
 
 
 def rskelf_logdet(F: RSkelFFactor):
+    if F.symm == "n" and F.Si is not None and F.Si.size == 0:
+        ld = 0.0 + 0.0j
+        for f in F.factors:
+            if f.U is None or f.p is None:
+                continue
+            sign = detperm(f.p)
+            ld += np.sum(np.log(np.diag(f.U).astype(np.result_type(f.U, complex))))
+            ld += np.log(np.asarray(sign, dtype=complex))
+        return float(ld.real) + 1j * float(np.mod(ld.imag, 2 * np.pi))
     if F.A_dense is None:
         raise ValueError("factor does not contain matrix data")
     sign, ld = np.linalg.slogdet(F.A_dense)
     if np.iscomplexobj(F.A_dense):
-        return np.log(np.linalg.det(F.A_dense))
-    if sign <= 0:
-        return np.log(sign) + ld
-    return ld
+        val = np.log(np.linalg.det(F.A_dense))
+        return val.real + 1j * np.mod(val.imag, 2 * np.pi)
+    return np.log(np.asarray(sign, dtype=complex)) + ld
+
+
+def _factor_dtype(F: RSkelFFactor, X) -> np.dtype:
+    dtype = np.asarray(X).dtype
+    for f in F.factors:
+        dtype = np.result_type(dtype, f.T, f.L)
+        if f.U is not None:
+            dtype = np.result_type(dtype, f.U)
+        if f.E is not None:
+            dtype = np.result_type(dtype, f.E)
+        if f.F is not None:
+            dtype = np.result_type(dtype, f.F)
+    return np.dtype(dtype)
+
+
+def _prepare_rhs(F: RSkelFFactor, X) -> np.ndarray:
+    return np.array(X, dtype=_factor_dtype(F, X), copy=True)
+
+
+def _rskelf_mv_nn(F: RSkelFFactor, X: np.ndarray) -> np.ndarray:
+    for f in F.factors:
+        sk, rd = f.sk, f.rd
+        X[sk, :] = X[sk, :] + f.T @ X[rd, :]
+        X[rd, :] = f.U @ X[rd, :]
+        X[rd, :] = X[rd, :] + f.F @ X[sk, :]
+    for f in reversed(F.factors):
+        sk, rd = f.sk, f.rd
+        X[sk, :] = X[sk, :] + f.E @ X[rd, :]
+        X[rd[f.p], :] = f.L @ X[rd, :]
+        X[rd, :] = X[rd, :] + f.T.conj().T @ X[sk, :]
+    return X
+
+
+def _rskelf_mv_nc(F: RSkelFFactor, X: np.ndarray) -> np.ndarray:
+    for f in F.factors:
+        sk, rd = f.sk, f.rd
+        X[sk, :] = X[sk, :] + f.T @ X[rd, :]
+        X[rd, :] = f.L.conj().T @ X[rd[f.p], :]
+        X[rd, :] = X[rd, :] + f.E.conj().T @ X[sk, :]
+    for f in reversed(F.factors):
+        sk, rd = f.sk, f.rd
+        X[sk, :] = X[sk, :] + f.F.conj().T @ X[rd, :]
+        X[rd, :] = f.U.conj().T @ X[rd, :]
+        X[rd, :] = X[rd, :] + f.T.conj().T @ X[sk, :]
+    return X
+
+
+def _rskelf_sv_nn(F: RSkelFFactor, X: np.ndarray) -> np.ndarray:
+    for f in F.factors:
+        sk, rd = f.sk, f.rd
+        X[rd, :] = X[rd, :] - f.T.conj().T @ X[sk, :]
+        X[rd, :] = la.solve_triangular(f.L, X[rd[f.p], :], lower=True, unit_diagonal=True)
+        X[sk, :] = X[sk, :] - f.E @ X[rd, :]
+    for f in reversed(F.factors):
+        sk, rd = f.sk, f.rd
+        X[rd, :] = X[rd, :] - f.F @ X[sk, :]
+        X[rd, :] = la.solve_triangular(f.U, X[rd, :], lower=False)
+        X[sk, :] = X[sk, :] - f.T @ X[rd, :]
+    return X
+
+
+def _rskelf_sv_nc(F: RSkelFFactor, X: np.ndarray) -> np.ndarray:
+    for f in F.factors:
+        sk, rd = f.sk, f.rd
+        X[rd, :] = X[rd, :] - f.T.conj().T @ X[sk, :]
+        X[rd, :] = la.solve_triangular(f.U.conj().T, X[rd, :], lower=True)
+        X[sk, :] = X[sk, :] - f.F.conj().T @ X[rd, :]
+    for f in reversed(F.factors):
+        sk, rd = f.sk, f.rd
+        X[rd, :] = X[rd, :] - f.E.conj().T @ X[sk, :]
+        X[rd[f.p], :] = la.solve_triangular(f.L.conj().T, X[rd, :], lower=False, unit_diagonal=True)
+        X[sk, :] = X[sk, :] - f.T @ X[rd, :]
+    return X
 
 
 def rskelf_partial_info(F: RSkelFFactor):
@@ -128,6 +387,7 @@ def rskelf_partial_sv(F: RSkelFFactor, X, svfun=None, trans: str = "n") -> np.nd
 
 
 __all__ = [
+    "RSkelFFactorBlock",
     "RSkelFFactor",
     "rskelf",
     "rskelf_logdet",
