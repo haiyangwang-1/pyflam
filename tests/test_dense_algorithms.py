@@ -1,0 +1,49 @@
+import unittest
+
+import numpy as np
+
+from pyflam import ifmm, ifmm_mv, rskel, rskel_mv, rskel_xsp, rskelf, rskelf_logdet, rskelf_mv, rskelf_sv
+
+
+def kernel_matrix(x, y):
+    return 1.0 / (1.0 + np.abs(x[:, None] - y[None, :]))
+
+
+class DenseAlgorithmTests(unittest.TestCase):
+    def setUp(self):
+        self.x = np.linspace(0.0, 1.0, 8).reshape(1, -1)
+        self.A = kernel_matrix(self.x.ravel(), self.x.ravel()) + 2.0 * np.eye(8)
+        self.X = np.arange(16.0).reshape(8, 2) / 17.0
+
+        def Afun(i, j):
+            return self.A[np.ix_(i, j)]
+
+        self.Afun = Afun
+
+    def test_rskel_mv_matches_dense(self):
+        F = rskel(self.Afun, self.x, self.x, occ=3, rank_or_tol=1e-10)
+        np.testing.assert_allclose(rskel_mv(F, self.X), self.A @ self.X)
+        np.testing.assert_allclose(rskel_mv(F, self.X, "c"), self.A.conj().T @ self.X)
+        Xsp, p, q = rskel_xsp(F)
+        np.testing.assert_allclose(Xsp.toarray(), self.A)
+        np.testing.assert_array_equal(p, np.arange(8))
+        np.testing.assert_array_equal(q, np.arange(8))
+
+    def test_ifmm_mv_matches_dense(self):
+        F = ifmm(self.Afun, self.x, self.x, occ=3, rank_or_tol=1e-10, opts={"store": "a"})
+        np.testing.assert_allclose(ifmm_mv(F, self.X), self.A @ self.X)
+        np.testing.assert_allclose(ifmm_mv(F, self.X, trans="t"), self.A.T @ self.X)
+
+    def test_rskelf_mv_sv_logdet_match_dense(self):
+        F = rskelf(self.Afun, self.x, occ=3, rank_or_tol=1e-10)
+        np.testing.assert_allclose(rskelf_mv(F, self.X), self.A @ self.X)
+        np.testing.assert_allclose(rskelf_sv(F, self.X), np.linalg.solve(self.A, self.X))
+        self.assertAlmostEqual(rskelf_logdet(F), np.linalg.slogdet(self.A)[1])
+
+    def test_rskelf_positive_definite(self):
+        F = rskelf(self.A, self.x, occ=3, rank_or_tol=1e-10, opts={"symm": "p"})
+        np.testing.assert_allclose(rskelf_sv(F, self.X), np.linalg.solve(self.A, self.X))
+
+
+if __name__ == "__main__":
+    unittest.main()
