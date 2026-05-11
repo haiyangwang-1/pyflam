@@ -11,9 +11,11 @@ from pyflam import (
     rskelf,
     rskelf_cholmv,
     rskelf_cholsv,
+    rskelf_diag,
     rskelf_logdet,
     rskelf_mv,
     rskelf_partial_info,
+    rskelf_spdiag,
     rskelf_sv,
 )
 
@@ -296,6 +298,48 @@ class RSkelfOptionParityTests(unittest.TestCase):
         np.testing.assert_allclose(rskelf_sv(F, data["X"], "n"), data["Yn"], rtol=1e-9, atol=1e-9)
         np.testing.assert_allclose(rskelf_sv(F, data["X"], "t"), data["Yt"], rtol=1e-9, atol=1e-9)
         np.testing.assert_allclose(rskelf_sv(F, data["X"], "c"), data["Yc"], rtol=1e-9, atol=1e-9)
+
+    def test_diag_and_spdiag_modes_match_matlab(self):
+        for symm in ("n", "s", "h", "p"):
+            with self.subTest(symm=symm):
+                data = run_matlab_export(
+                    f"rskelf_diag_{symm}",
+                    textwrap.dedent(
+                        f"""
+                        addpath(genpath('{str(FLAM_REF).replace("'", "''")}'));
+                        n = 20;
+                        x = linspace(0,1,n);
+                        row = reshape(x,[],1);
+                        col = reshape(x,1,[]);
+                        dx = row - col;
+                        if '{symm}' == 'n'
+                          Ad = 1./(1 + abs(dx)) + 3*eye(n) + 0.03*(row + 2*col);
+                        elseif '{symm}' == 's'
+                          Ad = 1./(1 + abs(dx)) + 3*eye(n) + 0.03*(row + col);
+                        else
+                          Ad = 1./(1 + abs(dx)) + 3*eye(n);
+                        end
+                        F = rskelf(Ad,x,2,1e-10,[],struct('symm','{symm}'));
+                        D = rskelf_diag(F);
+                        Di = rskelf_diag(F,1);
+                        SD = rskelf_spdiag(F);
+                        SDi = rskelf_spdiag(F,1);
+                        nfactors = length(F.factors);
+                        save('__OUT__','Ad','D','Di','SD','SDi','nfactors');
+                        exit;
+                        """
+                    ),
+                )
+
+                x = np.linspace(0.0, 1.0, 20).reshape(1, -1)
+                F = rskelf(data["Ad"], x, occ=2, rank_or_tol=1e-10, opts={"symm": symm})
+
+                self.assertEqual(len(F.factors), int(data["nfactors"].ravel()[0]))
+                self.assertEqual(F.Si.size, 0)
+                np.testing.assert_allclose(rskelf_diag(F), data["D"].ravel(), rtol=1e-8, atol=1e-8)
+                np.testing.assert_allclose(rskelf_diag(F, True), data["Di"].ravel(), rtol=1e-8, atol=1e-8)
+                np.testing.assert_allclose(rskelf_spdiag(F), data["SD"].ravel(), rtol=1e-8, atol=1e-8)
+                np.testing.assert_allclose(rskelf_spdiag(F, True), data["SDi"].ravel(), rtol=1e-8, atol=1e-8)
 
     def test_symmetric_mode_matches_matlab(self):
         data = run_matlab_export(

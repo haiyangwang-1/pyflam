@@ -77,7 +77,7 @@ bug instead of silently skipping.
 - [x] Verify `rskelf_logdet` for real, complex, symmetric, Hermitian, positive,
       and partial factorizations.
 - [x] Ensure callback-based factors do not require eager dense materialization.
-- [ ] Port or validate all upstream mode helper equivalents under
+- [x] Port or validate all upstream mode helper equivalents under
       `FLAM/rskelf/mv`, `FLAM/rskelf/sv`, and `FLAM/rskelf/spdiag`.
 
 ## 4. Finish `rskel` Fidelity
