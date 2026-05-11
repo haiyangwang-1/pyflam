@@ -299,6 +299,68 @@ def rskelf_logdet(F: RSkelFFactor):
     return np.log(np.asarray(sign, dtype=complex)) + ld
 
 
+def rskelf_cholmv(F: RSkelFFactor, X, trans: str = "n") -> np.ndarray:
+    """Apply the generalized Cholesky factor for a positive-definite factorization."""
+
+    _require_positive_definite(F, "rskelf_cholmv")
+    trans = chktrans(trans)
+    if trans == "t":
+        return np.conj(rskelf_cholmv(F, np.conj(X), "c"))
+    X = np.asarray(X)
+    one_dim = X.ndim == 1
+    if one_dim:
+        X = X[:, None]
+    if trans == "n":
+        Y = F.chol @ X
+    else:
+        Y = F.chol.conj().T @ X
+    return Y[:, 0] if one_dim else Y
+
+
+def rskelf_cholsv(F: RSkelFFactor, X, trans: str = "n") -> np.ndarray:
+    """Apply the inverse generalized Cholesky factor for a positive-definite factorization."""
+
+    _require_positive_definite(F, "rskelf_cholsv")
+    trans = chktrans(trans)
+    if trans == "t":
+        return np.conj(rskelf_cholsv(F, np.conj(X), "c"))
+    X = np.asarray(X)
+    one_dim = X.ndim == 1
+    if one_dim:
+        X = X[:, None]
+    if trans == "n":
+        Y = la.solve_triangular(F.chol, X, lower=True)
+    else:
+        Y = la.solve_triangular(F.chol.conj().T, X, lower=False)
+    return Y[:, 0] if one_dim else Y
+
+
+def rskelf_diag(F: RSkelFFactor, dinv: bool | int = False, opts: dict[str, Any] | None = None) -> np.ndarray:
+    """Extract ``diag(F)`` or ``diag(inv(F))``.
+
+    This provides the FLAM public interface with dense exact semantics. Compact
+    selected-inversion can be layered underneath this API later.
+    """
+
+    if F.A_dense is None:
+        raise ValueError("factor does not contain matrix data")
+    if dinv:
+        eye = np.eye(F.N, dtype=F.A_dense.dtype)
+        return np.diag(rskelf_sv(F, eye))
+    return np.diag(F.A_dense).copy()
+
+
+def rskelf_spdiag(F: RSkelFFactor, dinv: bool | int = False) -> np.ndarray:
+    """Extract a diagonal using the sparse-apply style FLAM API."""
+
+    return rskelf_diag(F, dinv)
+
+
+def _require_positive_definite(F: RSkelFFactor, caller: str) -> None:
+    if F.symm != "p" or F.chol is None:
+        raise ValueError(f"{caller} requires a factorization built with opts={{'symm': 'p'}}")
+
+
 def _factor_dtype(F: RSkelFFactor, X) -> np.dtype:
     dtype = np.asarray(X).dtype
     for f in F.factors:
@@ -390,10 +452,14 @@ __all__ = [
     "RSkelFFactorBlock",
     "RSkelFFactor",
     "rskelf",
+    "rskelf_cholmv",
+    "rskelf_cholsv",
+    "rskelf_diag",
     "rskelf_logdet",
     "rskelf_mv",
     "rskelf_partial_info",
     "rskelf_partial_mv",
     "rskelf_partial_sv",
+    "rskelf_spdiag",
     "rskelf_sv",
 ]

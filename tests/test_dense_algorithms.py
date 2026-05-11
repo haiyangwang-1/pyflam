@@ -2,7 +2,21 @@ import unittest
 
 import numpy as np
 
-from pyflam import ifmm, ifmm_mv, rskel, rskel_mv, rskel_xsp, rskelf, rskelf_logdet, rskelf_mv, rskelf_sv
+from pyflam import (
+    ifmm,
+    ifmm_mv,
+    rskel,
+    rskel_mv,
+    rskel_xsp,
+    rskelf,
+    rskelf_cholmv,
+    rskelf_cholsv,
+    rskelf_diag,
+    rskelf_logdet,
+    rskelf_mv,
+    rskelf_spdiag,
+    rskelf_sv,
+)
 
 
 def kernel_matrix(x, y):
@@ -53,10 +67,19 @@ class DenseAlgorithmTests(unittest.TestCase):
         np.testing.assert_allclose(rskelf_sv(F, self.X), np.linalg.solve(self.A, self.X))
         np.testing.assert_allclose(rskelf_sv(F, self.X, "c"), np.linalg.solve(self.A.conj().T, self.X))
         self.assertAlmostEqual(rskelf_logdet(F), np.linalg.slogdet(self.A)[1])
+        np.testing.assert_allclose(rskelf_diag(F), np.diag(self.A))
+        np.testing.assert_allclose(rskelf_diag(F, True), np.diag(np.linalg.inv(self.A)))
+        np.testing.assert_allclose(rskelf_spdiag(F), np.diag(self.A))
+        np.testing.assert_allclose(rskelf_spdiag(F, True), np.diag(np.linalg.inv(self.A)))
 
     def test_rskelf_positive_definite(self):
         F = rskelf(self.A, self.x, occ=3, rank_or_tol=1e-10, opts={"symm": "p"})
         np.testing.assert_allclose(rskelf_sv(F, self.X), np.linalg.solve(self.A, self.X))
+        C = F.chol
+        np.testing.assert_allclose(rskelf_cholmv(F, self.X), C @ self.X)
+        np.testing.assert_allclose(rskelf_cholmv(F, self.X, "c"), C.conj().T @ self.X)
+        np.testing.assert_allclose(rskelf_cholsv(F, self.X), np.linalg.solve(C, self.X))
+        np.testing.assert_allclose(rskelf_cholsv(F, self.X, "c"), np.linalg.solve(C.conj().T, self.X))
 
 
 if __name__ == "__main__":
