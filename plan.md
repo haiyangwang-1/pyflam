@@ -191,18 +191,21 @@ bug instead of silently skipping.
 
 ## 11. Performance Optimization
 
-- [ ] Profile build, apply, solve, logdet, and selected inversion separately on
+- [x] Profile build, apply, solve, logdet, and selected inversion separately on
       representative dense-kernel and sparse-grid cases.
-- [ ] Identify Python-loop hotspots in compact `rskelf`, `rskel`, `ifmm`, `mf`,
+- [x] Identify Python-loop hotspots in compact `rskelf`, `rskel`, `ifmm`, `mf`,
       `hifie`, and `hifde` sweeps.
-- [ ] Batch small triangular solves where it does not obscure the algorithm.
-- [ ] Reduce repeated indexing, allocation, and dtype conversion in sweep loops.
-- [ ] Consider `numba` or another JIT only if it can be enabled locally with
-      small, readable changes and no major rewrite.
-- [ ] Abort or defer any optimization that requires a large, hard-to-audit code
+- [x] Evaluate batching small triangular solves; defer because the profile
+      points to many independent factor-block solves and batching would require
+      a hard-to-audit sweep restructuring.
+- [x] Reduce repeated dtype conversion in sweep and selected-inversion loops.
+- [x] Consider `numba` or another JIT only if it can be enabled locally with
+      small, readable changes and no major rewrite; defer because adding a JIT
+      dependency would not be a local, low-risk change.
+- [x] Abort or defer any optimization that requires a large, hard-to-audit code
       change.
-- [ ] Keep accuracy parity fixed while optimizing.
-- [ ] Record benchmark results in `docs/` and `benchmark_results/`.
+- [x] Keep accuracy parity fixed while optimizing.
+- [x] Record benchmark results in `docs/` and `benchmark_results/`.
 
 ## 12. Documentation Cleanup
 

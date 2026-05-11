@@ -203,15 +203,16 @@ def rskel_mv(F: RSkelFactor, X, trans: str = "n") -> np.ndarray:
     trans = chktrans(trans)
     if trans == "t":
         return np.conj(rskel_mv(F, np.conj(X), "c"))
-    X = np.asarray(X, dtype=_factor_dtype(F, X))
+    dtype = _factor_dtype(F, X)
+    X = np.asarray(X, dtype=dtype)
     one_dim = X.ndim == 1
     if one_dim:
         X = X[:, None]
-    Y = _rskel_mv_compact(F, X, trans)
+    Y = _rskel_mv_compact(F, X, trans, dtype)
     return Y[:, 0] if one_dim else Y
 
 
-def _rskel_mv_compact(F: RSkelFactor, X: np.ndarray, trans: str) -> np.ndarray:
+def _rskel_mv_compact(F: RSkelFactor, X: np.ndarray, trans: str, dtype: np.dtype | None = None) -> np.ndarray:
     nlvl = F.nlvl
     p = F.Q if F.symm == "n" and trans == "c" else F.P
     q = F.Q if F.symm == "n" and trans == "n" else F.P
@@ -220,7 +221,7 @@ def _rskel_mv_compact(F: RSkelFactor, X: np.ndarray, trans: str) -> np.ndarray:
     prem = np.ones(np_, dtype=bool)
     qrem = np.ones(nq, dtype=bool)
     qmap = np.zeros((nq, 2), dtype=np.int64)
-    dtype = _factor_dtype(F, X)
+    dtype = np.dtype(dtype) if dtype is not None else _factor_dtype(F, X)
     Z: list[np.ndarray] = [np.empty((0, X.shape[1]), dtype=dtype)]
     Z.extend(np.empty((0, X.shape[1]), dtype=dtype) for _ in range(nlvl - 1))
     Ylevels: list[np.ndarray] = [np.empty((0, X.shape[1]), dtype=dtype) for _ in range(nlvl + 1)]

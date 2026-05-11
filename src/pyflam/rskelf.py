@@ -520,10 +520,10 @@ def _rskelf_diag_unfold(F: RSkelFFactor, dinv: bool | int = False, *, external: 
             if external:
                 ex = _diag_external_indices(keep_lvl, keep_trans, rd, sk)
                 rse = np.concatenate((rd, sk, ex))
-                X = _diag_unfold_block(F, f, M, rd, sk, ex, bool(dinv))
+                X = _diag_unfold_block(F, f, M, rd, sk, ex, bool(dinv), dtype)
             else:
                 rse = np.concatenate((rd, sk))
-                X = _diag_unfold_block(F, f, M, rd, sk, None, bool(dinv))
+                X = _diag_unfold_block(F, f, M, rd, sk, None, bool(dinv), dtype)
             if rse.size == 0:
                 continue
             local_keep = np.asarray(keep_lvl[np.ix_(rse, rse)].toarray(), dtype=bool)
@@ -620,11 +620,11 @@ def _diag_unfold_block(
     sk: np.ndarray,
     ex: np.ndarray | None,
     dinv: bool,
+    dtype: np.dtype,
 ) -> np.ndarray:
     nrd = rd.size
     nsk = sk.size
     nex = 0 if ex is None else ex.size
-    dtype = _factor_dtype(F, np.array(0.0))
     X = np.zeros((nrd + nsk + nex, nrd + nsk + nex), dtype=dtype)
     ird = np.arange(nrd)
     isk = nrd + np.arange(nsk)

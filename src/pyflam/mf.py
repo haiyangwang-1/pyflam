@@ -356,7 +356,7 @@ def _mf_diag_unfold(F: MFFactor, dinv: bool) -> np.ndarray:
             rse = np.concatenate((rd, sk))
             if rse.size == 0:
                 continue
-            X = _mf_diag_unfold_block(F, f, M, rd, sk, dinv)
+            X = _mf_diag_unfold_block(F, f, M, rd, sk, dinv, dtype)
             local_keep = np.asarray(keep_lvl[np.ix_(rse, rse)].toarray(), dtype=bool)
             mask = local_keep & (X != 0)
             if np.any(mask):
@@ -413,10 +413,17 @@ def _mf_diag_keep_patterns(F: MFFactor) -> list[sp.csc_matrix]:
     return keep
 
 
-def _mf_diag_unfold_block(F: MFFactor, f: MFFactorBlock, M: sp.csc_matrix, rd: np.ndarray, sk: np.ndarray, dinv: bool):
+def _mf_diag_unfold_block(
+    F: MFFactor,
+    f: MFFactorBlock,
+    M: sp.csc_matrix,
+    rd: np.ndarray,
+    sk: np.ndarray,
+    dinv: bool,
+    dtype: np.dtype,
+):
     nrd = rd.size
     nsk = sk.size
-    dtype = _factor_dtype(F)
     X = np.zeros((nrd + nsk, nrd + nsk), dtype=dtype)
     ird = np.arange(nrd)
     isk = nrd + np.arange(nsk)
