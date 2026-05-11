@@ -25,6 +25,24 @@ def _spd_tridiag(n):
     )
 
 
+def _spd_grid2(n):
+    nd = n - 1
+    A = sp.lil_matrix((nd * nd, nd * nd))
+    for j in range(nd):
+        for i in range(nd):
+            k = i + nd * j
+            A[k, k] = 4.0
+            if i > 0:
+                A[k, k - 1] = -1.0
+            if i + 1 < nd:
+                A[k, k + 1] = -1.0
+            if j > 0:
+                A[k, k - nd] = -1.0
+            if j + 1 < nd:
+                A[k, k + nd] = -1.0
+    return A.tocsc()
+
+
 class MultifontalTests(unittest.TestCase):
     def test_mfx_mv_sv_logdet_match_dense(self):
         A = np.array(
@@ -79,17 +97,16 @@ class MultifontalTests(unittest.TestCase):
         np.testing.assert_allclose(mf_logdet(F), ref_logdet)
 
     def test_mf2_positive_definite_cholesky_helpers(self):
-        A_sparse = _spd_tridiag(9)
+        A_sparse = _spd_grid2(4)
         A = A_sparse.toarray()
         X = np.arange(18.0).reshape(9, 2) / 19.0
         F = mf2(A_sparse, n=4, occ=2, opts={"symm": "p"})
 
-        np.testing.assert_allclose(mf_mv(F, X), A @ X)
-        np.testing.assert_allclose(mf_sv(F, X), np.linalg.solve(A, X))
-        np.testing.assert_allclose(mf_cholmv(F, X), F.chol @ X)
-        np.testing.assert_allclose(mf_cholmv(F, X, "c"), F.chol.conj().T @ X)
-        np.testing.assert_allclose(mf_cholsv(F, X), np.linalg.solve(F.chol, X))
-        np.testing.assert_allclose(mf_cholsv(F, X, "c"), np.linalg.solve(F.chol.conj().T, X))
+        np.testing.assert_allclose(mf_mv(F, X), A @ X, atol=1e-12)
+        np.testing.assert_allclose(mf_sv(F, X), np.linalg.solve(A, X), atol=1e-12)
+        np.testing.assert_allclose(mf_cholmv(F, mf_cholmv(F, X, "c")), A @ X, atol=1e-12)
+        np.testing.assert_allclose(mf_cholsv(F, mf_cholmv(F, X)), X, atol=1e-12)
+        np.testing.assert_allclose(mf_cholsv(F, mf_cholsv(F, X), "c"), np.linalg.solve(A, X), atol=1e-12)
         self.assertAlmostEqual(float(np.real(mf_logdet(F))), np.linalg.slogdet(A)[1])
 
     def test_mf3_dimension_and_solve(self):

@@ -121,9 +121,9 @@ bug instead of silently skipping.
 
 ## 7. Implement True FLAM `mf`
 
-- [ ] Study upstream `FLAM/mf/mf2.m`, `mf3.m`, `mfx.m`, `mv/*`, `sv/*`, and
+- [x] Study upstream `FLAM/mf/mf2.m`, `mf3.m`, `mfx.m`, `mv/*`, `sv/*`, and
       `spdiag/*`.
-- [ ] Replace correctness-first dense/SciPy sparse LU backend with FLAM
+- [x] Replace correctness-first dense/SciPy sparse LU backend with FLAM
       hierarchical multifrontal construction for `mf2`.
 - [ ] Implement true `mf3`.
 - [ ] Implement true point-cloud `mfx`.

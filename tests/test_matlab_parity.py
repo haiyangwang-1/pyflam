@@ -348,12 +348,28 @@ class MatlabParityTests(unittest.TestCase):
                     ld = mf_logdet(F);
                     D = mf_diag(F);
                     Di = mf_diag(F,1);
-                    save('__OUT__','A','X','Ymv','Ysv','ld','D','Di');
+                    nlvl = F.nlvl;
+                    lvp = F.lvp;
+                    nf = length(F.factors);
+                    sk_counts = zeros(1,nf);
+                    rd_counts = zeros(1,nf);
+                    for k = 1:nf
+                      sk_counts(k) = length(F.factors(k).sk);
+                      rd_counts(k) = length(F.factors(k).rd);
+                    end
+                    save('__OUT__','A','X','Ymv','Ysv','ld','D','Di', ...
+                         'nlvl','lvp','nf','sk_counts','rd_counts');
                     exit;
             """,
         )
 
         F = mf2(data["A"], n=4, occ=2)
+        self.assertTrue(F.hierarchical)
+        self.assertEqual(F.nlvl, int(data["nlvl"].ravel()[0]))
+        np.testing.assert_array_equal(F.lvp, data["lvp"].ravel().astype(np.int64))
+        self.assertEqual(len(F.factors), int(data["nf"].ravel()[0]))
+        np.testing.assert_array_equal([f.sk.size for f in F.factors], data["sk_counts"].ravel().astype(np.int64))
+        np.testing.assert_array_equal([f.rd.size for f in F.factors], data["rd_counts"].ravel().astype(np.int64))
         np.testing.assert_allclose(mf_mv(F, data["X"]), data["Ymv"], rtol=1e-9, atol=1e-9)
         np.testing.assert_allclose(mf_sv(F, data["X"]), data["Ysv"], rtol=1e-9, atol=1e-9)
         np.testing.assert_allclose(mf_logdet(F), data["ld"].ravel()[0], rtol=1e-9, atol=1e-9)
