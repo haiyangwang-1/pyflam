@@ -321,6 +321,42 @@ class IFMMOptionParityTests(unittest.TestCase):
         np.testing.assert_allclose(ifmm_mv(F, data["X"]), data["Ymv"], rtol=1e-9, atol=1e-9)
         np.testing.assert_allclose(ifmm_mv(F, data["Z"], trans="c"), data["Yadj"], rtol=1e-9, atol=1e-9)
 
+    def test_mv_transpose_modes_match_matlab(self):
+        data = run_matlab_export(
+            "ifmm_mv_trans",
+            textwrap.dedent(
+                f"""
+                addpath(genpath('{str(FLAM_REF).replace("'", "''")}'));
+                m = 13;
+                n = 9;
+                rx = linspace(0,1,m);
+                cx = linspace(0.04,0.94,n);
+                row = reshape(rx,[],1);
+                col = reshape(cx,1,[]);
+                dx = row - col;
+                Ad = 1./(1 + abs(dx)) + 0.03i*(row + 2*col);
+                Xn = reshape(sin((1:(2*n))/17), n, 2) ...
+                    + 1i*reshape(cos((1:(2*n))/19), n, 2);
+                Xm = reshape(cos((1:(2*m))/23), m, 2) ...
+                    + 1i*reshape(sin((1:(2*m))/29), m, 2);
+                F = ifmm(Ad,rx,cx,3,1e-10,[],struct('store','a','near',1,'symm','n'));
+                Yn = ifmm_mv(F,Xn,'n');
+                Yt = ifmm_mv(F,Xm,[],'t');
+                Yc = ifmm_mv(F,Xm,[],'c');
+                save('__OUT__','Ad','Xn','Xm','Yn','Yt','Yc');
+                exit;
+                """
+            ),
+        )
+
+        rx = np.linspace(0.0, 1.0, 13).reshape(1, -1)
+        cx = np.linspace(0.04, 0.94, 9).reshape(1, -1)
+        F = ifmm(data["Ad"], rx, cx, occ=3, rank_or_tol=1e-10, opts={"store": "a", "near": 1, "symm": "n"})
+
+        np.testing.assert_allclose(ifmm_mv(F, data["Xn"], trans="n"), data["Yn"], rtol=1e-9, atol=1e-9)
+        np.testing.assert_allclose(ifmm_mv(F, data["Xm"], trans="t"), data["Yt"], rtol=1e-9, atol=1e-9)
+        np.testing.assert_allclose(ifmm_mv(F, data["Xm"], trans="c"), data["Yc"], rtol=1e-9, atol=1e-9)
+
 
 if __name__ == "__main__":
     unittest.main()
