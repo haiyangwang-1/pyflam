@@ -77,6 +77,8 @@ class HIFDETests(unittest.TestCase):
         self.assertEqual(F.opts["hifde_variant"], "hifde2")
         self.assertEqual(F.opts["rank_or_tol"], 1e-10)
         self.assertEqual(F.opts["skip"], 1)
+        self.assertEqual(F.backend.Si.size, 0)
+        self.assertIsNone(F.backend.A_dense)
         np.testing.assert_allclose(hifde_mv(F, X), A @ X, atol=1e-12)
         np.testing.assert_allclose(hifde_sv(F, X), np.linalg.solve(A, X), atol=1e-12)
         self.assertAlmostEqual(hifde_logdet(F), np.linalg.slogdet(A)[1])

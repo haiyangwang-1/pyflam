@@ -20,6 +20,11 @@ from pyflam import (
     hypoct,
     hypoct_perm,
     hifde2,
+    hifde2x,
+    hifde3,
+    hifde3x,
+    hifde_cholmv,
+    hifde_cholsv,
     hifde_diag,
     hifde_logdet,
     hifde_mv,
@@ -825,6 +830,94 @@ class MatlabParityTests(unittest.TestCase):
         np.testing.assert_allclose(hifde_logdet(F), data["ld"].ravel()[0], rtol=1e-9, atol=1e-9)
         np.testing.assert_allclose(hifde_diag(F), data["D"].ravel(), rtol=1e-9, atol=1e-9)
         np.testing.assert_allclose(hifde_diag(F, True), data["Di"].ravel(), rtol=1e-9, atol=1e-9)
+
+    def test_hifde_entry_points_match_matlab(self):
+        data = _run_flam_export(
+            "hifde_entry_points",
+            """
+                    n2 = 4; nd2 = n2 - 1; N2 = nd2^2;
+                    A2 = sparse(N2,N2);
+                    for j = 1:nd2, for i = 1:nd2
+                      idx = i + nd2*(j - 1);
+                      A2(idx,idx) = 4;
+                      if i > 1,   A2(idx,idx - 1) = -1; end
+                      if i < nd2, A2(idx,idx + 1) = -1; end
+                      if j > 1,   A2(idx,idx - nd2) = -1; end
+                      if j < nd2, A2(idx,idx + nd2) = -1; end
+                    end, end
+                    [gx,gy] = ndgrid((1:nd2)/n2); x2 = [gx(:).'; gy(:).'];
+                    X2 = reshape((0:(2*N2-1))/(2*N2+1),N2,2);
+                    % R2026a errors in the upstream point-cloud histc path for
+                    % these tiny grids, so this entry-point check skips the
+                    % extra point-cloud reductions while regular hifde2/hifde3
+                    % parity covers the dimensional skeletonization stages.
+                    optsx = struct('symm','p','skip',99);
+                    F2x = hifde2x(A2,x2,2,1e-10,optsx);
+                    Y2x = hifde_mv(F2x,X2);
+                    Z2x = hifde_sv(F2x,X2);
+                    C2x = hifde_cholmv(F2x,hifde_cholmv(F2x,X2,'c'));
+                    W2x = hifde_cholsv(F2x,hifde_cholsv(F2x,X2),'c');
+                    ld2x = hifde_logdet(F2x);
+                    lvp2x = F2x.lvp; nf2x = length(F2x.factors);
+
+                    n3 = 4; nd3 = n3 - 1; N3 = nd3^3;
+                    A3 = sparse(N3,N3);
+                    for k = 1:nd3, for j = 1:nd3, for i = 1:nd3
+                      idx = i + nd3*(j - 1) + nd3^2*(k - 1);
+                      A3(idx,idx) = 6;
+                      if i > 1,   A3(idx,idx - 1) = -1; end
+                      if i < nd3, A3(idx,idx + 1) = -1; end
+                      if j > 1,   A3(idx,idx - nd3) = -1; end
+                      if j < nd3, A3(idx,idx + nd3) = -1; end
+                      if k > 1,   A3(idx,idx - nd3^2) = -1; end
+                      if k < nd3, A3(idx,idx + nd3^2) = -1; end
+                    end, end, end
+                    [gx,gy,gz] = ndgrid((1:nd3)/n3,(1:nd3)/n3,(1:nd3)/n3);
+                    x3 = [gx(:).'; gy(:).'; gz(:).'];
+                    X3 = reshape((0:(2*N3-1))/(2*N3+1),N3,2);
+
+                    F3 = hifde3(A3,n3,2,1e-10,struct('symm','p'));
+                    Y3 = hifde_mv(F3,X3);
+                    Z3 = hifde_sv(F3,X3);
+                    ld3 = hifde_logdet(F3);
+                    lvp3 = F3.lvp; nf3 = length(F3.factors);
+
+                    F3x = hifde3x(A3,x3,2,1e-10,optsx);
+                    Y3x = hifde_mv(F3x,X3);
+                    Z3x = hifde_sv(F3x,X3);
+                    ld3x = hifde_logdet(F3x);
+                    lvp3x = F3x.lvp; nf3x = length(F3x.factors);
+
+                    save('__OUT__','A2','A3','x2','x3','X2','X3','Y2x','Z2x','C2x','W2x','ld2x', ...
+                         'lvp2x','nf2x','Y3','Z3','ld3','lvp3','nf3','Y3x','Z3x','ld3x','lvp3x','nf3x');
+                    exit;
+            """,
+            timeout=180,
+        )
+
+        F2x = hifde2x(data["A2"], data["x2"], occ=2, rank_or_tol=1e-10, opts={"symm": "p", "skip": 99})
+        self.assertIsNone(F2x.backend.A_dense)
+        np.testing.assert_array_equal(F2x.lvp, data["lvp2x"].ravel().astype(np.int64))
+        self.assertEqual(len(F2x.factors), int(data["nf2x"].ravel()[0]))
+        np.testing.assert_allclose(hifde_mv(F2x, data["X2"]), data["Y2x"], rtol=1e-9, atol=1e-9)
+        np.testing.assert_allclose(hifde_sv(F2x, data["X2"]), data["Z2x"], rtol=1e-9, atol=1e-9)
+        np.testing.assert_allclose(hifde_cholmv(F2x, hifde_cholmv(F2x, data["X2"], "c")), data["C2x"], rtol=1e-9, atol=1e-9)
+        np.testing.assert_allclose(hifde_cholsv(F2x, hifde_cholsv(F2x, data["X2"]), "c"), data["W2x"], rtol=1e-9, atol=1e-9)
+        np.testing.assert_allclose(hifde_logdet(F2x), data["ld2x"].ravel()[0], rtol=1e-9, atol=1e-9)
+
+        F3 = hifde3(data["A3"], n=4, occ=2, rank_or_tol=1e-10, opts={"symm": "p"})
+        np.testing.assert_array_equal(F3.lvp, data["lvp3"].ravel().astype(np.int64))
+        self.assertEqual(len(F3.factors), int(data["nf3"].ravel()[0]))
+        np.testing.assert_allclose(hifde_mv(F3, data["X3"]), data["Y3"], rtol=1e-9, atol=1e-9)
+        np.testing.assert_allclose(hifde_sv(F3, data["X3"]), data["Z3"], rtol=1e-9, atol=1e-9)
+        np.testing.assert_allclose(hifde_logdet(F3), data["ld3"].ravel()[0], rtol=1e-9, atol=1e-9)
+
+        F3x = hifde3x(data["A3"], data["x3"], occ=2, rank_or_tol=1e-10, opts={"symm": "p", "skip": 99})
+        np.testing.assert_array_equal(F3x.lvp, data["lvp3x"].ravel().astype(np.int64))
+        self.assertEqual(len(F3x.factors), int(data["nf3x"].ravel()[0]))
+        np.testing.assert_allclose(hifde_mv(F3x, data["X3"]), data["Y3x"], rtol=1e-9, atol=1e-9)
+        np.testing.assert_allclose(hifde_sv(F3x, data["X3"]), data["Z3x"], rtol=1e-9, atol=1e-9)
+        np.testing.assert_allclose(hifde_logdet(F3x), data["ld3x"].ravel()[0], rtol=1e-9, atol=1e-9)
 
 
 class ChunkIEStyleRSkelfParityTests(unittest.TestCase):

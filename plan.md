@@ -157,20 +157,20 @@ bug instead of silently skipping.
 
 ## 9. Implement True HIFDE
 
-- [ ] Study upstream `FLAM/hifde/hifde2.m`, `hifde3.m`, `hifde2x.m`,
+- [x] Study upstream `FLAM/hifde/hifde2.m`, `hifde3.m`, `hifde2x.m`,
       `hifde3x.m`, `mv/*`, `sv/*`, and `spdiag/*`.
-- [ ] Build HIFDE on top of the true hierarchical `mf` implementation.
-- [ ] Define Python HIFDE factor dataclasses rather than aliasing `MFFactor`.
-- [ ] Implement true `hifde2`.
-- [ ] Implement true `hifde3`.
-- [ ] Implement true `hifde2x`.
-- [ ] Implement true `hifde3x`.
-- [ ] Port `hifde_mv`, `hifde_sv`, `hifde_logdet`, `hifde_cholmv`, and
+- [x] Build HIFDE on top of the true hierarchical `mf` implementation.
+- [x] Define Python HIFDE factor dataclasses rather than aliasing `MFFactor`.
+- [x] Implement true `hifde2`.
+- [x] Implement true `hifde3`.
+- [x] Implement true `hifde2x`.
+- [x] Implement true `hifde3x`.
+- [x] Port `hifde_mv`, `hifde_sv`, `hifde_logdet`, `hifde_cholmv`, and
       `hifde_cholsv`.
 - [ ] Port `hifde_diag` and `hifde_spdiag` selected-inversion paths.
-- [ ] Add MATLAB parity from representative upstream tests under
+- [x] Add MATLAB parity from representative upstream tests under
       `FLAM/hifde/test`.
-- [ ] Ensure public behavior remains compatible with current wrappers while
+- [x] Ensure public behavior remains compatible with current wrappers while
       removing the `mf` routing as the default implementation.
 
 ## 10. Implement Fast Selected Inversion
