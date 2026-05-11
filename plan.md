@@ -37,7 +37,7 @@ bug instead of silently skipping.
       sparse correction nnz, and proxy-call evidence.
 - [ ] Preserve the existing two ChunkIE-style `rskelf` parity tests:
       Laplace Dirichlet starfish and Helmholtz Dirichlet starfish.
-- [ ] Add at least two more ChunkIE-derived tests from
+- [x] Add at least two more ChunkIE-derived tests from
       `chunkie/devtools/test`, prioritizing cases that use near/self quadrature
       correction and proxy compression.
 
