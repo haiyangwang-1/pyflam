@@ -1,9 +1,9 @@
 """Hierarchical interpolative factorization for integral equations.
 
 The public HIFIE routines share the same apply/solve/logdet surface as
-``rskelf``.  This module currently routes through the recursive skeletonization
-backend, giving exact operation semantics for the MATLAB-facing API while
-preserving the HIFIE entry points for future dimensional-reduction kernels.
+``rskelf`` while building HIFIE-specific dimensional-reduction factors by
+default.  A plain ``rskelf`` route remains available only as an explicit debug
+option.
 """
 
 from __future__ import annotations

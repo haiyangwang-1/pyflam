@@ -1,5 +1,4 @@
 import os
-import tempfile
 import textwrap
 import unittest
 from pathlib import Path
@@ -10,6 +9,7 @@ import scipy.special
 
 from matlab_parity_utils import (
     MATLAB,
+    default_flam_reference,
     logdet_mod_error as _logdet_mod_error,
     matlab_path,
     relerr as _relerr,
@@ -67,10 +67,7 @@ from pyflam import (
 )
 
 
-_DEFAULT_FLAM_REF = Path(tempfile.gettempdir()) / "flam-reference"
-if not _DEFAULT_FLAM_REF.exists():
-    _DEFAULT_FLAM_REF = Path(tempfile.gettempdir()) / "FLAM-ref"
-FLAM_REF = Path(os.environ.get("FLAM_REFERENCE", _DEFAULT_FLAM_REF))
+FLAM_REF = default_flam_reference()
 CHUNKIE_REF = Path(os.environ.get("CHUNKIE_REFERENCE", Path(r"C:\Users\haiya\git\chunkie")))
 
 

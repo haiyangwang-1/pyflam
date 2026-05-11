@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import subprocess
 import tempfile
 from pathlib import Path
@@ -11,6 +12,14 @@ import scipy.io
 
 
 MATLAB = Path(r"C:\Program Files\MATLAB\R2026a\bin\matlab.exe")
+FLAM_MARKERS = (
+    Path("rskelf") / "rskelf.m",
+    Path("rskel") / "rskel.m",
+    Path("ifmm") / "ifmm.m",
+    Path("mf") / "mf2.m",
+    Path("hifie") / "hifie2.m",
+    Path("hifde") / "hifde2.m",
+)
 
 
 def matlab_path(path: Path) -> str:
@@ -23,6 +32,24 @@ def require_paths(*paths: Path, label: str = "MATLAB parity") -> None:
     missing = [str(path) for path in paths if not path.exists()]
     if missing:
         raise RuntimeError(f"{label} requires: " + ", ".join(missing))
+
+
+def default_flam_reference() -> Path:
+    """Return a FLAM checkout containing the public entry-point m-files."""
+
+    env_ref = os.environ.get("FLAM_REFERENCE")
+    if env_ref:
+        return Path(env_ref)
+
+    candidates = [
+        Path(tempfile.gettempdir()) / "flam-reference",
+        Path(tempfile.gettempdir()) / "FLAM-ref",
+        Path.home() / "git" / "FLAM",
+    ]
+    for path in candidates:
+        if all((path / marker).exists() for marker in FLAM_MARKERS):
+            return path
+    return candidates[0]
 
 
 def run_matlab_script(script: Path, timeout: int = 120) -> None:

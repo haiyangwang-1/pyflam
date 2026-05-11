@@ -6,11 +6,19 @@ from pathlib import Path
 import numpy as np
 import scipy.special
 
-from matlab_parity_utils import MATLAB, logdet_mod_error, matlab_path, relerr, require_paths, run_matlab_export
+from matlab_parity_utils import (
+    MATLAB,
+    default_flam_reference,
+    logdet_mod_error,
+    matlab_path,
+    relerr,
+    require_paths,
+    run_matlab_export,
+)
 from pyflam import rskelf, rskelf_logdet, rskelf_mv, rskelf_sv
 
 
-FLAM_REF = Path(os.environ.get("FLAM_REFERENCE", r"C:\Users\haiya\git\FLAM"))
+FLAM_REF = default_flam_reference()
 CHUNKIE_REF = Path(os.environ.get("CHUNKIE_REFERENCE", r"C:\Users\haiya\git\chunkie"))
 
 

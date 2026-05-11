@@ -209,19 +209,19 @@ bug instead of silently skipping.
 
 ## 12. Documentation Cleanup
 
-- [ ] Update `README.md` to distinguish implemented faithful FLAM kernels from
+- [x] Update `README.md` to distinguish implemented faithful FLAM kernels from
       any explicit fallback/debug paths.
-- [ ] Update `docs/flam_dependency_map.md`; it still describes older dense-core
+- [x] Update `docs/flam_dependency_map.md`; it still describes older dense-core
       phases and should match the current implementation.
-- [ ] Document how to run MATLAB parity and ChunkIE parity with required
+- [x] Document how to run MATLAB parity and ChunkIE parity with required
       environment variables.
-- [ ] Document callback conventions, including 0-based indexing and sparse
+- [x] Document callback conventions, including 0-based indexing and sparse
       correction overwrite semantics.
-- [ ] Document known numerical differences such as complex logdet branch
+- [x] Document known numerical differences such as complex logdet branch
       handling.
-- [ ] Add a current implementation matrix for `rskelf`, `rskel`, `ifmm`, `mf`,
+- [x] Add a current implementation matrix for `rskelf`, `rskel`, `ifmm`, `mf`,
       `hifie`, and `hifde`.
-- [ ] Add a release checklist requiring full non-skipped MATLAB/ChunkIE parity.
+- [x] Add a release checklist requiring full non-skipped MATLAB/ChunkIE parity.
 
 ## Final Acceptance Criteria
 

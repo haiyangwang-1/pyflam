@@ -1,9 +1,8 @@
 """Multifrontal factorization public API.
 
-These routines expose FLAM's ``mfx``/``mf2``/``mf3`` interface.  The current
-implementation is correctness-first: it preserves the MATLAB-like factor
-object and operation surface while using dense NumPy/SciPy factorizations as
-the numerical backend.
+These routines expose FLAM's ``mfx``/``mf2``/``mf3`` interface with
+hierarchical multifrontal factors by default.  Direct sparse/dense
+factorization is retained only as an explicit debug backend.
 """
 
 from __future__ import annotations

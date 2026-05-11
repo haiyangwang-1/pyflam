@@ -1,47 +1,59 @@
 # FLAM Dependency Map
 
-This map was derived from the upstream MATLAB reference at commit `2c9361e`.
-It is intended to guide the Python port from the bottom up.
+This map tracks the current Python port against the upstream MATLAB FLAM
+families used by the public API.
 
-## Upstream Function Counts
+## Core Layer
 
-- `core`: 14 functions
-- `compat`: 4 functions
-- `ifmm`: 2 library functions plus examples/tests
-- `rskel`: 3 library functions plus examples/tests
-- `rskelf`: 18 library functions plus examples/tests and mode-specific helpers
-- `mf`, `hifie`, `hifde`: out of scope for the dense-core pass
+- `chktrans`, `chksymm`, `detperm`, `hypoct`, `hypoct_perm`, `id`, `ismemb`,
+  `logdet_ldl`, `snorm`, and sparse helpers are implemented directly in
+  Python.
+- Matrix access uses structured callbacks through `submatrix`; callbacks
+  receive 0-based NumPy index arrays.
+- Pivoted QR, triangular solves, sparse matrices, sparse LU, LDL, and Cholesky
+  use SciPy/NumPy primitives.
 
-## Dense-Core Dependency Closure
+## Compression And Integral Kernels
 
-The target APIs depend on the following upstream routines:
+- `rskel` depends on `hypoct`, `hypoct_perm`, `id`, and sparse/dense block
+  access. Its `D/U` block layout and `rskel_mv` compact sweeps are ported.
+- `ifmm` depends on `hypoct`, `hypoct_perm`, `id`, direct-interaction discovery,
+  and proxy callbacks. All `store` modes and compact `ifmm_mv` paths are
+  implemented.
+- `rskelf` depends on `hypoct`, `id`, sparse update helpers, local LU/Cholesky
+  blocks, and mode-specific apply/solve/logdet/selected-inversion sweeps.
+  Complete callback factors avoid full dense matrix retention.
 
-- `hypoct`: no FLAM dependencies
-- `hypoct_perm`: no FLAM dependencies
-- `id`: no FLAM dependencies beyond MATLAB QR primitives
-- `rskel`: `chksymm`, `hypoct`, `hypoct_perm`, `id`
-- `rskel_mv`: `chktrans`
-- `rskel_xsp`: no FLAM dependencies
-- `ifmm`: `chksymm`, `hypoct`, `hypoct_perm`, `id`, `ismemb`
-- `ifmm_mv`: `chktrans`
-- `rskelf`: `chksymm`, `hypoct`, `id`, `isoctave`
-- `rskelf_mv`: `chktrans`, mode helpers under `rskelf/mv`
-- `rskelf_sv`: `chktrans`, mode helpers under `rskelf/sv`
-- `rskelf_logdet`: `detperm`, `logdet_ldl`
-- `rskelf_partial_*`: `chktrans`, `rskelf_mv_*`, `rskelf_sv_*`
+## Sparse And HIF Kernels
 
-## Port Order
+- `mf2`, `mf3`, and `mfx` build hierarchical multifrontal factors by default.
+  Dense/SciPy sparse direct factorization is an explicit debug path.
+- `hifie2`, `hifie2x`, `hifie3`, and `hifie3x` build hierarchical integral
+  equation factors with dimensional-reduction helpers and compact rskelf-style
+  operation sweeps.
+- `hifde2`, `hifde3`, `hifde2x`, and `hifde3x` build hierarchical differential
+  equation factors using sparse local elimination plus skeletonization and
+  compact rskelf-style operation sweeps.
+- `rskelf_diag`, `mf_diag`, `hifie_diag`, and `hifde_diag` use selected
+  inversion for complete hierarchical factors. Sparse-style `spdiag` wrappers
+  use FLAM-style active-block propagation.
 
-1. Core utilities: `chktrans`, `chksymm`, `hypoct`, `hypoct_perm`, `id`, `snorm`.
-2. Sparse utility layer: `spget`, `spgetv`, `spaddv`, `sppush2`, `sppush3`, `spsymm`, `spsymm2`, `detperm`, `ismemb`, `logdet_ldl`.
-3. Compression/factor construction: `rskel`, `ifmm`, `rskelf`.
-4. Apply/solve/logdet routines: `rskel_mv`, `ifmm_mv`, `rskelf_mv`, `rskelf_sv`, `rskelf_logdet`.
-5. Optional selected/partial helpers once full hierarchical factors replace dense fallback storage.
+## Current Port Order
 
-## Current Implementation Status
+1. Core utilities and sparse helper layer.
+2. `rskel`, `ifmm`, and `rskelf` construction plus compact apply/solve/logdet.
+3. MATLAB/ChunkIE parity harness with callback/proxy/quadrature-correction
+   coverage.
+4. Hierarchical `mf`, `hifie`, and `hifde` construction and operation wrappers.
+5. Selected-inversion diagonal extraction.
+6. Profiling, low-risk dtype/allocation cleanup, and documentation.
 
-- Implemented directly: core tree, permutation, ID, norm estimate, sparse utilities, public API dataclasses.
-- Implemented as bottom-up FLAM-style construction: `rskel` `D/U` blocks and `rskelf` skeleton/elimination factor blocks.
-- Implemented as foundational IFMM construction: tree/direct interaction discovery and self/direct `B` block storage.
-- Still using exact dense retained matrices for public apply/solve/logdet correctness while hierarchical sweep ports are underway.
-- Not yet implemented as full hierarchical sweeps: `rskel_mv`, `ifmm_mv`, and mode-specific `rskelf_{mv,sv}_*` routines operating only from compact factors.
+## Explicit Fallbacks
+
+- `mf2`/`mf3`/`mfx` accept `opts={"debug_dense": True}` to use the direct sparse
+  backend for debugging.
+- `hifie*` accepts `opts={"debug_rskelf": True}` to route through the plain
+  `rskelf` builder for debugging.
+- `rskelf_diag` and related wrappers fall back to compact identity-RHS sweeps
+  for partial factors because selected inversion is only defined for complete
+  factors.
