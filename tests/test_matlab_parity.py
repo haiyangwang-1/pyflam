@@ -11,6 +11,11 @@ import scipy.io
 from pyflam import (
     hypoct,
     hypoct_perm,
+    hifde2,
+    hifde_diag,
+    hifde_logdet,
+    hifde_mv,
+    hifde_sv,
     hifie_id,
     hifie_idx,
     id,
@@ -432,6 +437,47 @@ class MatlabParityTests(unittest.TestCase):
         np.testing.assert_allclose(mf_logdet(F), data["ld"].ravel()[0], rtol=1e-9, atol=1e-9)
         np.testing.assert_allclose(mf_diag(F), data["D"].ravel(), rtol=1e-9, atol=1e-9)
         np.testing.assert_allclose(mf_diag(F, True), data["Di"].ravel(), rtol=1e-9, atol=1e-9)
+
+    def test_hifde2_grid_operator(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "hifde2_parity.mat"
+            script = Path(tmp) / "run_hifde2_parity.m"
+            script.write_text(
+                textwrap.dedent(
+                    f"""
+                    addpath(genpath('{str(FLAM_REF).replace("'", "''")}'));
+                    n = 4;
+                    N = (n-1)^2;
+                    e = ones(N,1);
+                    A = spdiags([-e 4*e -e],[-3 0 3],N,N);
+                    X = reshape((0:(2*N-1))/(2*N+1),N,2);
+                    F = hifde2(A,n,2,1e-10,struct('symm','n'));
+                    Ymv = hifde_mv(F,X);
+                    Ysv = hifde_sv(F,X);
+                    ld = hifde_logdet(F);
+                    D = hifde_diag(F);
+                    Di = hifde_diag(F,1);
+                    save('{str(out).replace("'", "''")}','A','X','Ymv','Ysv','ld','D','Di');
+                    exit;
+                    """
+                )
+            )
+            subprocess.run(
+                [str(MATLAB), "-batch", f"run('{script.as_posix()}')"],
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                timeout=120,
+            )
+            data = scipy.io.loadmat(out)
+
+        F = hifde2(data["A"], n=4, occ=2, rank_or_tol=1e-10)
+        np.testing.assert_allclose(hifde_mv(F, data["X"]), data["Ymv"], rtol=1e-9, atol=1e-9)
+        np.testing.assert_allclose(hifde_sv(F, data["X"]), data["Ysv"], rtol=1e-9, atol=1e-9)
+        np.testing.assert_allclose(hifde_logdet(F), data["ld"].ravel()[0], rtol=1e-9, atol=1e-9)
+        np.testing.assert_allclose(hifde_diag(F), data["D"].ravel(), rtol=1e-9, atol=1e-9)
+        np.testing.assert_allclose(hifde_diag(F, True), data["Di"].ravel(), rtol=1e-9, atol=1e-9)
 
 
 if __name__ == "__main__":
