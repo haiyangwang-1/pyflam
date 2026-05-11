@@ -167,7 +167,7 @@ class MatlabParityTests(unittest.TestCase):
                     n = 18;
                     x = linspace(0,1,n);
                     A = @(i,j) 1./(1 + abs(reshape(x(i),[],1) - reshape(x(j),1,[]))) + 2*(i(:)==j(:)');
-                    F = rskelf(A,x,3,1e-10,[],struct('symm','n','stop',1));
+                    F = rskelf(A,x,3,1e-10,[],struct('symm','n','stop',3));
                     ld = rskelf_logdet(F);
                     Ad = A(1:n,1:n);
                     save('{str(out).replace("'", "''")}','Ad','ld');
@@ -186,7 +186,7 @@ class MatlabParityTests(unittest.TestCase):
             data = scipy.io.loadmat(out)
 
         x = np.linspace(0.0, 1.0, 18).reshape(1, -1)
-        F = rskelf(data["Ad"], x, 3, 1e-10, opts={"symm": "n", "stop": 1})
+        F = rskelf(data["Ad"], x, 3, 1e-10, opts={"symm": "n", "stop": 3})
         self.assertGreater(F.Si.size, 0)
         np.testing.assert_allclose(rskelf_logdet(F), data["ld"].ravel()[0], rtol=1e-9, atol=1e-9)
 
@@ -202,7 +202,7 @@ class MatlabParityTests(unittest.TestCase):
                     x = linspace(0,1,n);
                     A = @(i,j) 1./(1 + abs(reshape(x(i),[],1) - reshape(x(j),1,[]))) + 2*(i(:)==j(:)');
                     X = reshape((0:35)/37,n,2);
-                    F = rskelf(A,x,3,1e-10,[],struct('symm','n','stop',1));
+                    F = rskelf(A,x,3,1e-10,[],struct('symm','n','stop',3));
                     Ymv = rskelf_mv(F,X);
                     Ysv = rskelf_sv(F,X);
                     Ad = A(1:n,1:n);
@@ -222,7 +222,7 @@ class MatlabParityTests(unittest.TestCase):
             data = scipy.io.loadmat(out)
 
         x = np.linspace(0.0, 1.0, 18).reshape(1, -1)
-        F = rskelf(data["Ad"], x, 3, 1e-10, opts={"symm": "n", "stop": 1})
+        F = rskelf(data["Ad"], x, 3, 1e-10, opts={"symm": "n", "stop": 3})
         self.assertGreater(F.Si.size, 0)
         np.testing.assert_allclose(rskelf_mv(F, data["X"]), data["Ymv"], rtol=1e-9, atol=1e-9)
         np.testing.assert_allclose(rskelf_sv(F, data["X"]), data["Ysv"], rtol=1e-9, atol=1e-9)

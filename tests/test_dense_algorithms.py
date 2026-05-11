@@ -234,6 +234,18 @@ class DenseAlgorithmTests(unittest.TestCase):
         np.testing.assert_allclose(rskelf_partial_mv(F, X), A @ X, rtol=1e-9, atol=1e-9)
         np.testing.assert_allclose(rskelf_partial_sv(F, X), np.linalg.solve(A, X), rtol=1e-9, atol=1e-9)
 
+    def test_rskelf_partial_diag_uses_compact_factor(self):
+        x = np.linspace(0.0, 1.0, 18).reshape(1, -1)
+        A = kernel_matrix(x.ravel(), x.ravel()) + 2.0 * np.eye(18)
+        F = rskelf(A, x, occ=3, rank_or_tol=1e-10, opts={"stop": 3})
+        eye = np.eye(A.shape[0])
+
+        self.assertGreater(len(F.factors), 0)
+        self.assertGreater(F.Si.size, 0)
+        np.testing.assert_allclose(rskelf_diag(F), np.diag(rskelf_mv(F, eye)), rtol=1e-9, atol=1e-9)
+        np.testing.assert_allclose(rskelf_diag(F, True), np.diag(rskelf_sv(F, eye)), rtol=1e-9, atol=1e-9)
+        self.assertGreater(np.linalg.norm(rskelf_diag(F) - np.diag(A)), 1.0)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -367,14 +367,14 @@ def rskelf_diag(F: RSkelFFactor, dinv: bool | int = False, opts: dict[str, Any] 
     selected-inversion can be layered underneath this API later.
     """
 
-    if dinv:
+    if _has_compact_factor(F):
         eye = np.eye(F.N, dtype=_factor_dtype(F, np.array(0.0)))
-        return np.diag(rskelf_sv(F, eye))
+        return np.diag(rskelf_sv(F, eye) if dinv else rskelf_mv(F, eye))
     if F.A_dense is None:
-        if _has_complete_compact_factor(F):
-            eye = np.eye(F.N, dtype=_factor_dtype(F, np.array(0.0)))
-            return np.diag(rskelf_mv(F, eye))
         raise ValueError("factor does not contain matrix data")
+    if dinv:
+        eye = np.eye(F.N, dtype=F.A_dense.dtype)
+        return np.diag(rskelf_sv(F, eye))
     return np.diag(F.A_dense).copy()
 
 
