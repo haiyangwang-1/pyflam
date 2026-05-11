@@ -72,7 +72,7 @@ bug instead of silently skipping.
 - [x] Add partial-factorization parity for scalar `stop` and callable/nontrivial
       stop functions.
 - [x] Verify compact `rskelf_mv` for `trans='n'`, `'t'`, and `'c'`.
-- [ ] Verify compact `rskelf_sv` for `trans='n'`, `'t'`, and `'c'`.
+- [x] Verify compact `rskelf_sv` for `trans='n'`, `'t'`, and `'c'`.
 - [x] Verify `rskelf_cholmv` and `rskelf_cholsv` for positive-definite factors.
 - [ ] Verify `rskelf_logdet` for real, complex, symmetric, Hermitian, positive,
       and partial factorizations.
