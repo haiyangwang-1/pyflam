@@ -57,6 +57,8 @@ class HIFIETests(unittest.TestCase):
         F = hifie2(self.A, self.x2, occ=3, rank_or_tol=1e-10)
 
         self.assertEqual(F.opts["hifie_variant"], "hifie2")
+        self.assertEqual(F.backend.Si.size, 0)
+        self.assertIsNone(F.backend.A_dense)
         np.testing.assert_allclose(hifie_mv(F, self.X), self.A @ self.X)
         np.testing.assert_allclose(hifie_sv(F, self.X), np.linalg.solve(self.A, self.X))
         self.assertAlmostEqual(hifie_logdet(F), np.linalg.slogdet(self.A)[1])
@@ -75,10 +77,9 @@ class HIFIETests(unittest.TestCase):
     def test_hifie_positive_definite_cholesky_helpers(self):
         F = hifie2(self.A, self.x2, occ=3, rank_or_tol=1e-10, opts={"symm": "p"})
 
-        np.testing.assert_allclose(hifie_cholmv(F, self.X), F.chol @ self.X)
-        np.testing.assert_allclose(hifie_cholmv(F, self.X, "c"), F.chol.conj().T @ self.X)
-        np.testing.assert_allclose(hifie_cholsv(F, self.X), np.linalg.solve(F.chol, self.X))
-        np.testing.assert_allclose(hifie_cholsv(F, self.X, "c"), np.linalg.solve(F.chol.conj().T, self.X))
+        np.testing.assert_allclose(hifie_cholmv(F, hifie_cholmv(F, self.X, "c")), self.A @ self.X, atol=1e-12)
+        np.testing.assert_allclose(hifie_cholsv(F, hifie_cholmv(F, self.X)), self.X, atol=1e-12)
+        np.testing.assert_allclose(hifie_cholsv(F, hifie_cholsv(F, self.X), "c"), np.linalg.solve(self.A, self.X))
 
 
 if __name__ == "__main__":

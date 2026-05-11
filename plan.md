@@ -142,17 +142,17 @@ bug instead of silently skipping.
 - [x] Study upstream `FLAM/hifie/base/hifie2_base.m`,
       `hifie3_base.m`, `hifie_id.m`, and `hifie_idx.m`.
 - [x] Define Python HIFIE factor dataclasses rather than aliasing `RSkelFFactor`.
-- [ ] Port the internal dimensional-reduction helper family.
-- [ ] Implement true `hifie2`.
-- [ ] Implement true `hifie2x`.
-- [ ] Implement true `hifie3`.
-- [ ] Implement true `hifie3x`.
-- [ ] Port `hifie_mv`, `hifie_sv`, `hifie_logdet`, `hifie_cholmv`, and
+- [x] Port the internal dimensional-reduction helper family.
+- [x] Implement true `hifie2`.
+- [x] Implement true `hifie2x`.
+- [x] Implement true `hifie3`.
+- [x] Implement true `hifie3x`.
+- [x] Port `hifie_mv`, `hifie_sv`, `hifie_logdet`, `hifie_cholmv`, and
       `hifie_cholsv`.
 - [ ] Port `hifie_diag` and `hifie_spdiag` selected-inversion paths.
-- [ ] Add MATLAB parity from representative upstream tests under
+- [x] Add MATLAB parity from representative upstream tests under
       `FLAM/hifie/test`.
-- [ ] Ensure public behavior remains compatible with current wrappers while
+- [x] Ensure public behavior remains compatible with current wrappers while
       removing the `rskelf` routing as the default implementation.
 
 ## 9. Implement True HIFDE

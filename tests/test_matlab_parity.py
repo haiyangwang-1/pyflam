@@ -24,8 +24,17 @@ from pyflam import (
     hifde_logdet,
     hifde_mv,
     hifde_sv,
+    hifie2,
+    hifie2x,
+    hifie3,
+    hifie3x,
+    hifie_cholmv,
+    hifie_cholsv,
     hifie_id,
     hifie_idx,
+    hifie_logdet,
+    hifie_mv,
+    hifie_sv,
     id,
     ifmm,
     ifmm_mv,
@@ -157,6 +166,171 @@ class MatlabParityTests(unittest.TestCase):
         np.testing.assert_array_equal(sk, data["sk2"].ravel().astype(np.int64) - 1)
         np.testing.assert_array_equal(rd, data["rd2"].ravel().astype(np.int64) - 1)
         np.testing.assert_allclose(T, data["T2"], rtol=1e-12, atol=1e-12)
+
+    def test_hifie_entry_points_match_matlab(self):
+        data = _run_flam_export(
+            "hifie_entry_points",
+            """
+                    [gx,gy] = meshgrid(linspace(0,1,4),linspace(0,1,4));
+                    x2 = [gx(:).'; gy(:).'];
+                    n2 = size(x2,2);
+                    D2 = sqrt((x2(1,:).' - x2(1,:)).^2 + (x2(2,:).' - x2(2,:)).^2);
+                    A2 = 1./(1 + D2) + 3*eye(n2);
+                    X2 = reshape((0:(2*n2-1))/(2*n2+1),n2,2);
+
+                    F2 = hifie2(A2,x2,4,1e-10,[],struct('symm','n'));
+                    Y2 = hifie_mv(F2,X2);
+                    Z2 = hifie_sv(F2,X2);
+                    ld2 = hifie_logdet(F2);
+                    lvp2 = F2.lvp; nf2 = length(F2.factors);
+
+                    F2x = hifie2x(A2,x2,4,1e-10,[],struct('symm','n'));
+                    Y2x = hifie_mv(F2x,X2,'t');
+                    Z2x = hifie_sv(F2x,X2,'t');
+                    ld2x = hifie_logdet(F2x);
+
+                    [gx,gy,gz] = ndgrid(linspace(0,1,3),linspace(0,1,3),linspace(0,1,3));
+                    x3 = [gx(:).'; gy(:).'; gz(:).'];
+                    n3 = size(x3,2);
+                    D3 = sqrt((x3(1,:).' - x3(1,:)).^2 + (x3(2,:).' - x3(2,:)).^2 + ...
+                              (x3(3,:).' - x3(3,:)).^2);
+                    A3 = 1./(1 + D3) + 3*eye(n3);
+                    X3 = reshape((0:(2*n3-1))/(2*n3+1),n3,2);
+                    opts3 = struct('symm','n','skip',99);
+
+                    F3 = hifie3(A3,x3,4,1e-10,[],opts3);
+                    Y3 = hifie_mv(F3,X3);
+                    Z3 = hifie_sv(F3,X3);
+                    ld3 = hifie_logdet(F3);
+
+                    F3x = hifie3x(A3,x3,4,1e-10,[],opts3);
+                    Y3x = hifie_mv(F3x,X3,'t');
+                    Z3x = hifie_sv(F3x,X3,'t');
+                    ld3x = hifie_logdet(F3x);
+
+                    save('__OUT__','A2','A3','x2','x3','X2','X3','Y2','Z2','ld2','lvp2','nf2', ...
+                         'Y2x','Z2x','ld2x','Y3','Z3','ld3','Y3x','Z3x','ld3x');
+                    exit;
+            """,
+            timeout=180,
+        )
+
+        F2 = hifie2(data["A2"], data["x2"], occ=4, rank_or_tol=1e-10)
+        self.assertIsNone(F2.backend.A_dense)
+        np.testing.assert_array_equal(F2.lvp, data["lvp2"].ravel().astype(np.int64))
+        self.assertEqual(len(F2.factors), int(data["nf2"].ravel()[0]))
+        np.testing.assert_allclose(hifie_mv(F2, data["X2"]), data["Y2"], rtol=1e-9, atol=1e-9)
+        np.testing.assert_allclose(hifie_sv(F2, data["X2"]), data["Z2"], rtol=1e-9, atol=1e-9)
+        np.testing.assert_allclose(hifie_logdet(F2), data["ld2"].ravel()[0], rtol=1e-9, atol=1e-9)
+
+        F2x = hifie2x(data["A2"], data["x2"], occ=4, rank_or_tol=1e-10)
+        np.testing.assert_allclose(hifie_mv(F2x, data["X2"], trans="t"), data["Y2x"], rtol=1e-9, atol=1e-9)
+        np.testing.assert_allclose(hifie_sv(F2x, data["X2"], trans="t"), data["Z2x"], rtol=1e-9, atol=1e-9)
+        np.testing.assert_allclose(hifie_logdet(F2x), data["ld2x"].ravel()[0], rtol=1e-9, atol=1e-9)
+
+        F3 = hifie3(data["A3"], data["x3"], occ=4, rank_or_tol=1e-10, opts={"skip": 99})
+        np.testing.assert_allclose(hifie_mv(F3, data["X3"]), data["Y3"], rtol=1e-9, atol=1e-9)
+        np.testing.assert_allclose(hifie_sv(F3, data["X3"]), data["Z3"], rtol=1e-9, atol=1e-9)
+        np.testing.assert_allclose(hifie_logdet(F3), data["ld3"].ravel()[0], rtol=1e-9, atol=1e-9)
+
+        F3x = hifie3x(data["A3"], data["x3"], occ=4, rank_or_tol=1e-10, opts={"skip": 99})
+        np.testing.assert_allclose(hifie_mv(F3x, data["X3"], trans="t"), data["Y3x"], rtol=1e-9, atol=1e-9)
+        np.testing.assert_allclose(hifie_sv(F3x, data["X3"], trans="t"), data["Z3x"], rtol=1e-9, atol=1e-9)
+        np.testing.assert_allclose(hifie_logdet(F3x), data["ld3x"].ravel()[0], rtol=1e-9, atol=1e-9)
+
+    def test_hifie_covariance_proxy_matches_matlab(self):
+        data = _run_flam_export(
+            "hifie_covariance_proxy",
+            """
+                    n = 8; occ = 4; p = 4; rank_or_tol = 1e-8;
+                    Tmax = 2; skip = 1; symm = 'p'; noise = 1e-1; scale = 3;
+                    [x1,x2] = ndgrid((1:n)/n); x = [x1(:) x2(:)]';
+                    N = size(x,2);
+                    theta = (1:p)*2*pi/p; proxy_ = [cos(theta); sin(theta)];
+                    proxy_ = proxy_./max(abs(proxy_));
+                    R = 3/scale;
+                    proxy = reshape(proxy_(:)*linspace(0,R,p),2,p,p);
+                    shift = 1.5*proxy_;
+
+                    Afun = @(i,j)Afun_cov(i,j,x,noise,scale);
+                    pxyfun = @(x,slf,nbr,l,ctr)pxyfun_cov(x,slf,nbr,l,ctr,proxy,shift,scale);
+                    opts = struct('Tmax',Tmax,'skip',skip,'symm',symm);
+                    F = hifie2(Afun,x,occ,rank_or_tol,pxyfun,opts);
+                    A = Afun(1:N,1:N);
+                    X = reshape((0:(2*N-1))/(2*N+1),N,2);
+                    Y = hifie_mv(F,X);
+                    Z = hifie_sv(F,X);
+                    C = hifie_cholmv(F,hifie_cholmv(F,X,'c'));
+                    W = hifie_cholsv(F,hifie_cholsv(F,X),'c');
+                    ld = hifie_logdet(F);
+                    lvp = F.lvp; nf = length(F.factors);
+                    save('__OUT__','A','x','X','Y','Z','C','W','ld','lvp','nf', ...
+                         'proxy','shift','noise','scale');
+                    exit;
+
+                    function K = Kfun_cov(x,y,scale)
+                      dx = x(1,:)' - y(1,:);
+                      dy = x(2,:)' - y(2,:);
+                      dr = scale*sqrt(dx.^2 + dy.^2);
+                      K = exp(-0.5*dr.^2);
+                    end
+
+                    function A = Afun_cov(i,j,x,noise,scale)
+                      A = Kfun_cov(x(:,i),x(:,j),scale);
+                      [I,J] = ndgrid(i,j);
+                      A(I == J) = A(I == J) + noise^2;
+                    end
+
+                    function [Kpxy,nbr] = pxyfun_cov(x,slf,nbr,l,ctr,proxy,shift,scale)
+                      pxy = proxy + shift.*l + ctr;
+                      Kpxy = Kfun_cov(pxy,x(:,slf),scale);
+                      nbr = nbr(max(abs(x(:,nbr) - ctr)./l) < 1.5);
+                    end
+            """,
+            timeout=180,
+        )
+
+        x = data["x"]
+        proxy = data["proxy"]
+        shift = data["shift"]
+        noise = float(data["noise"].ravel()[0])
+        scale = float(data["scale"].ravel()[0])
+
+        def cov_kernel(src, dst):
+            diff = src[:, :, None] - dst[:, None, :]
+            dr = scale * np.linalg.norm(diff, axis=0)
+            return np.exp(-0.5 * dr**2)
+
+        def afun(i, j):
+            i = np.asarray(i, dtype=np.int64)
+            j = np.asarray(j, dtype=np.int64)
+            out = cov_kernel(x[:, i], x[:, j])
+            same = i[:, None] == j[None, :]
+            out[same] += noise**2
+            return out
+
+        def pxyfun(all_x, slf, nbr, l, ctr):
+            slf = np.asarray(slf, dtype=np.int64)
+            nbr = np.asarray(nbr, dtype=np.int64)
+            l = np.asarray(l).reshape(-1)
+            ctr = np.asarray(ctr).reshape(-1)
+            pxy = proxy + (shift * l[:, None])[:, :, None] + ctr[:, None, None]
+            pxy = pxy.reshape((x.shape[0], -1), order="F")
+            if nbr.size:
+                keep = np.max(np.abs((all_x[:, nbr] - ctr[:, None]) / l[:, None]), axis=0) < 1.5
+                nbr = nbr[keep]
+            return cov_kernel(pxy, all_x[:, slf]), nbr
+
+        F = hifie2(afun, x, occ=4, rank_or_tol=1e-8, pxyfun=pxyfun, opts={"symm": "p", "skip": 1})
+        self.assertIsNone(F.backend.A_dense)
+        np.testing.assert_array_equal(F.lvp, data["lvp"].ravel().astype(np.int64))
+        self.assertEqual(len(F.factors), int(data["nf"].ravel()[0]))
+        np.testing.assert_allclose(afun(np.arange(x.shape[1]), np.arange(x.shape[1])), data["A"])
+        np.testing.assert_allclose(hifie_mv(F, data["X"]), data["Y"], rtol=1e-8, atol=1e-8)
+        np.testing.assert_allclose(hifie_sv(F, data["X"]), data["Z"], rtol=1e-8, atol=1e-8)
+        np.testing.assert_allclose(hifie_cholmv(F, hifie_cholmv(F, data["X"], "c")), data["C"], rtol=1e-8, atol=1e-8)
+        np.testing.assert_allclose(hifie_cholsv(F, hifie_cholsv(F, data["X"]), "c"), data["W"], rtol=1e-8, atol=1e-8)
+        np.testing.assert_allclose(hifie_logdet(F), data["ld"].ravel()[0], rtol=1e-8, atol=1e-8)
 
     def test_rskelf_small_apply_and_solve(self):
         data = _run_flam_export(
