@@ -58,7 +58,7 @@ def _concat_indices(parts: list[np.ndarray]) -> np.ndarray:
 def _lu_vector(A: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Return MATLAB-style ``L, U, p`` with ``A[p, :] = L @ U``."""
 
-    lu, piv = la.lu_factor(A)
+    lu, piv = la.lu_factor(A, check_finite=False)
     n = A.shape[0]
     L = np.tril(lu, -1) + np.eye(n, dtype=lu.dtype)
     U = np.triu(lu)
@@ -166,18 +166,18 @@ def rskelf(A, x, occ, rank_or_tol, pxyfun=None, opts=None) -> RSkelFFactor:
             G = None
             if o["symm"] == "p":
                 L = np.linalg.cholesky(Krr)
-                E = la.solve_triangular(L, Ksr.conj().T, lower=True).conj().T
+                E = la.solve_triangular(L, Ksr.conj().T, lower=True, check_finite=False).conj().T
                 schur = E @ E.conj().T
             elif o["symm"] == "h":
                 L, D, perm = la.ldl(Krr, lower=True, hermitian=True)
                 p = np.asarray(perm, dtype=np.int64)
                 Ufac = D
-                schur = Ksr @ la.solve(Krr, Krs, assume_a="her")
+                schur = Ksr @ la.solve(Krr, Krs, assume_a="her", check_finite=False)
             else:
                 L, Umat, p = _lu_vector(Krr)
                 Ufac = Umat
-                E = la.solve_triangular(Umat.T, Ksr.T, lower=True).T
-                G = la.solve_triangular(L, Krs[p, :], lower=True, unit_diagonal=True)
+                E = la.solve_triangular(Umat.T, Ksr.T, lower=True, check_finite=False).T
+                G = la.solve_triangular(L, Krs[p, :], lower=True, unit_diagonal=True, check_finite=False)
                 schur = E @ G
 
             Mnext = M[np.ix_(sk, sk)] - schur
@@ -270,11 +270,11 @@ def rskelf_sv(F: RSkelFFactor, X, trans: str = "n") -> np.ndarray:
             Y = la.solve(F.A_dense.conj().T, X, assume_a="her")
     elif F.lu is not None:
         if trans == "n":
-            Y = la.lu_solve(F.lu, X)
+            Y = la.lu_solve(F.lu, X, check_finite=False)
         elif trans == "t":
-            Y = la.lu_solve(F.lu, X, trans=1)
+            Y = la.lu_solve(F.lu, X, trans=1, check_finite=False)
         else:
-            Y = la.lu_solve(F.lu, X, trans=2)
+            Y = la.lu_solve(F.lu, X, trans=2, check_finite=False)
     else:
         raise ValueError("factor does not contain solve data")
     return Y[:, 0] if one_dim else Y
@@ -410,12 +410,19 @@ def _rskelf_sv_nn(F: RSkelFFactor, X: np.ndarray) -> np.ndarray:
     for f in F.factors:
         sk, rd = f.sk, f.rd
         X[rd, :] = X[rd, :] - f.T.conj().T @ X[sk, :]
-        X[rd, :] = la.solve_triangular(f.L, X[rd[f.p], :], lower=True, unit_diagonal=True)
+        X[rd, :] = la.solve_triangular(
+            f.L,
+            X[rd[f.p], :],
+            lower=True,
+            unit_diagonal=True,
+            check_finite=False,
+            overwrite_b=True,
+        )
         X[sk, :] = X[sk, :] - f.E @ X[rd, :]
     for f in reversed(F.factors):
         sk, rd = f.sk, f.rd
         X[rd, :] = X[rd, :] - f.F @ X[sk, :]
-        X[rd, :] = la.solve_triangular(f.U, X[rd, :], lower=False)
+        X[rd, :] = la.solve_triangular(f.U, X[rd, :], lower=False, check_finite=False, overwrite_b=True)
         X[sk, :] = X[sk, :] - f.T @ X[rd, :]
     return X
 
@@ -424,12 +431,25 @@ def _rskelf_sv_nc(F: RSkelFFactor, X: np.ndarray) -> np.ndarray:
     for f in F.factors:
         sk, rd = f.sk, f.rd
         X[rd, :] = X[rd, :] - f.T.conj().T @ X[sk, :]
-        X[rd, :] = la.solve_triangular(f.U.conj().T, X[rd, :], lower=True)
+        X[rd, :] = la.solve_triangular(
+            f.U.conj().T,
+            X[rd, :],
+            lower=True,
+            check_finite=False,
+            overwrite_b=True,
+        )
         X[sk, :] = X[sk, :] - f.F.conj().T @ X[rd, :]
     for f in reversed(F.factors):
         sk, rd = f.sk, f.rd
         X[rd, :] = X[rd, :] - f.E.conj().T @ X[sk, :]
-        X[rd[f.p], :] = la.solve_triangular(f.L.conj().T, X[rd, :], lower=False, unit_diagonal=True)
+        X[rd[f.p], :] = la.solve_triangular(
+            f.L.conj().T,
+            X[rd, :],
+            lower=False,
+            unit_diagonal=True,
+            check_finite=False,
+            overwrite_b=True,
+        )
         X[sk, :] = X[sk, :] - f.T @ X[rd, :]
     return X
 
