@@ -1,3 +1,4 @@
+import os
 import textwrap
 import unittest
 from pathlib import Path
@@ -9,8 +10,8 @@ from matlab_parity_utils import MATLAB, logdet_mod_error, matlab_path, relerr, r
 from pyflam import rskelf, rskelf_logdet, rskelf_mv, rskelf_sv
 
 
-FLAM_REF = Path(r"C:\Users\haiya\git\FLAM")
-CHUNKIE_REF = Path(r"C:\Users\haiya\git\chunkie")
+FLAM_REF = Path(os.environ.get("FLAM_REFERENCE", r"C:\Users\haiya\git\FLAM"))
+CHUNKIE_REF = Path(os.environ.get("CHUNKIE_REFERENCE", r"C:\Users\haiya\git\chunkie"))
 
 
 class ChunkIEMoreRSkelfParityTests(unittest.TestCase):
@@ -30,6 +31,10 @@ class ChunkIEMoreRSkelfParityTests(unittest.TestCase):
         n = data["sys"].shape[0]
         idx = np.arange(n, dtype=np.int64)
 
+        self.assertEqual(data["r"].shape, data["dd"].shape)
+        self.assertEqual(data["r"].shape, data["d2"].shape)
+        self.assertEqual(data["r"].shape, data["nn"].shape)
+        self.assertEqual(np.asarray(data["opdims"]).size, 2)
         np.testing.assert_allclose(relerr(op(idx, idx), data["sys"]), 0.0, atol=1e-12)
         self.assertGreater(op.spmat.nnz, n)
 
@@ -94,24 +99,27 @@ def _chunkie_driver(case: str) -> str:
         sys = chunkermat(chnkr, fkern, fullopts) + dval*eye(chnkr.npt);
 
         r = chnkr.r(:,:);
+        dd = chnkr.d(:,:);
+        d2 = chnkr.d2(:,:);
         nn = chnkr.n(:,:);
         wts = weights(chnkr);
         wts = wts(:);
         xflam = r;
         occ = 10;
         tol = 1e-10;
+        opdims = ones([2,1,1]);
         {rhs}
 
-        matfun = @(i,j) chnk.flam.kernbyindex(i,j,chnkr,wts,fkern,ones([2,1,1]),spmat,{l2scale});
+        matfun = @(i,j) chnk.flam.kernbyindex(i,j,chnkr,wts,fkern,opdims,spmat,{l2scale});
         [pr,ptau,pw,pin] = chnk.flam.proxy_square_pts(64);
         pxyfun = @(x,slf,nbr,l,ctr) chnk.flam.proxyfun(slf,nbr,l,ctr,chnkr,wts, ...
-            fkern,ones([2,1,1]),pr,ptau,pw,pin,true,{l2scale});
+            fkern,opdims,pr,ptau,pw,pin,true,{l2scale});
         F = rskelf(matfun, xflam, occ, tol, pxyfun);
         Ymv = rskelf_mv(F, X);
         Ysv = rskelf_sv(F, X);
         ld = rskelf_logdet(F);
 
-        save('__OUT__','sys','spmat','r','nn','wts','xflam','occ','tol','X','Ymv','Ysv', ...
+        save('__OUT__','sys','spmat','r','dd','d2','nn','wts','xflam','occ','tol','opdims','X','Ymv','Ysv', ...
              'ld','pr','ptau','pw','zk','coef','-v7');
         exit;
         """
@@ -121,6 +129,8 @@ def _chunkie_driver(case: str) -> str:
 class _ChunkIEOperator:
     def __init__(self, data, case: str):
         self.r = np.asarray(data["r"])
+        self.d = np.asarray(data["dd"])
+        self.d2 = np.asarray(data["d2"])
         self.n = np.asarray(data["nn"])
         self.wts = np.asarray(data["wts"]).reshape(-1)
         self.spmat = data["spmat"].tocsc()

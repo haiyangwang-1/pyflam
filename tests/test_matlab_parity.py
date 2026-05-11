@@ -404,6 +404,10 @@ class ChunkIEStyleRSkelfParityTests(unittest.TestCase):
         op = _ChunkIERSkelfOperator(data, kernel_kind)
         n = data["sys"].shape[0]
         idx = np.arange(n, dtype=np.int64)
+        self.assertEqual(np.asarray(data["opdims"]).size, 2)
+        self.assertEqual(data["r"].shape, data["dd"].shape)
+        self.assertEqual(data["r"].shape, data["d2"].shape)
+        self.assertEqual(data["r"].shape, data["nn"].shape)
         dense_from_callback = op(idx, idx)
         np.testing.assert_allclose(_relerr(dense_from_callback, data["sys"]), 0.0, atol=1e-12)
         self.assertGreater(op.spmat.nnz, n)
@@ -471,19 +475,20 @@ def _chunkie_rskelf_driver_body(kernel_kind: str) -> str:
             xflam = r;
             occ = 12;
             tol = 1e-10;
+            opdims = ones([2,1,1]);
             {rhs_setup}
 
-            matfun = @(i,j) chnk.flam.kernbyindex(i,j,chnkr,wts,fkern,ones([2,1,1]),spmat);
+            matfun = @(i,j) chnk.flam.kernbyindex(i,j,chnkr,wts,fkern,opdims,spmat);
             [pr,ptau,pw,pin] = chnk.flam.proxy_square_pts(64);
             pxyfun = @(x,slf,nbr,l,ctr) chnk.flam.proxyfun(slf,nbr,l,ctr,chnkr,wts, ...
-                fkern,ones([2,1,1]),pr,ptau,pw,pin,true);
+                fkern,opdims,pr,ptau,pw,pin,true);
             F = rskelf(matfun, xflam, occ, tol, pxyfun);
             Ymv = rskelf_mv(F, X);
             Ysv = rskelf_sv(F, X);
             ld = rskelf_logdet(F);
 
             save('__OUT__','sys','spmat','r','dd','d2','nn','wts','xflam', ...
-                 'occ','tol','X','Ymv','Ysv','ld','pr','ptau','pw','zk','-v7');
+                 'occ','tol','opdims','X','Ymv','Ysv','ld','pr','ptau','pw','zk','-v7');
             exit;
             """
     )

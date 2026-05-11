@@ -43,22 +43,22 @@ bug instead of silently skipping.
 
 ## 2. Expand ChunkIE-Based `rskelf` Parity
 
-- [ ] Inspect `chunkie/devtools/test/flamutilitiesTest.m`,
+- [x] Inspect `chunkie/devtools/test/flamutilitiesTest.m`,
       `chunkermatTest.m`, `chunkermat_helm2dTest.m`,
       `chunkermat_l2scaleTest.m`, and adaptive-correction tests.
-- [ ] For each selected ChunkIE case, export from MATLAB:
+- [x] For each selected ChunkIE case, export from MATLAB:
       discretization points, derivatives, normals, weights, operator
       dimensions, sparse near/self correction matrix, proxy points/tangents/
       weights, right-hand sides, MATLAB FLAM outputs, and dense system matrix
       only as a reference.
-- [ ] Implement the matching Python kernel callback rather than calling back to
+- [x] Implement the matching Python kernel callback rather than calling back to
       the exported dense matrix.
-- [ ] Add sparse quadrature correction overwrite logic to the Python callback.
-- [ ] Add Python proxy callback matching `chnk.flam.proxyfun`.
-- [ ] Verify callback matrix reconstruction against ChunkIE dense matrix.
-- [ ] Verify PyFLAM `rskelf_mv`, `rskelf_sv`, solve residual, and logdet against
+- [x] Add sparse quadrature correction overwrite logic to the Python callback.
+- [x] Add Python proxy callback matching `chnk.flam.proxyfun`.
+- [x] Verify callback matrix reconstruction against ChunkIE dense matrix.
+- [x] Verify PyFLAM `rskelf_mv`, `rskelf_sv`, solve residual, and logdet against
       MATLAB FLAM and the ChunkIE reference matrix.
-- [ ] Benchmark representative sizes and record performance versus MATLAB FLAM
+- [x] Benchmark representative sizes and record performance versus MATLAB FLAM
       and ChunkIE dense assembly.
 
 ## 3. Finish `rskelf` Fidelity
