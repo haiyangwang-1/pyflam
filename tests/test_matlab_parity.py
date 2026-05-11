@@ -1,14 +1,20 @@
 import os
-import subprocess
 import tempfile
 import textwrap
 import unittest
 from pathlib import Path
 
 import numpy as np
-import scipy.io
 import scipy.special
 
+from matlab_parity_utils import (
+    MATLAB,
+    logdet_mod_error as _logdet_mod_error,
+    matlab_path,
+    relerr as _relerr,
+    require_paths,
+    run_matlab_export,
+)
 from pyflam import (
     hypoct,
     hypoct_perm,
@@ -38,7 +44,6 @@ from pyflam import (
 )
 
 
-MATLAB = Path(r"C:\Program Files\MATLAB\R2026a\bin\matlab.exe")
 _DEFAULT_FLAM_REF = Path(tempfile.gettempdir()) / "flam-reference"
 if not _DEFAULT_FLAM_REF.exists():
     _DEFAULT_FLAM_REF = Path(tempfile.gettempdir()) / "FLAM-ref"
@@ -46,21 +51,28 @@ FLAM_REF = Path(os.environ.get("FLAM_REFERENCE", _DEFAULT_FLAM_REF))
 CHUNKIE_REF = Path(os.environ.get("CHUNKIE_REFERENCE", Path(r"C:\Users\haiya\git\chunkie")))
 
 
+def _run_flam_export(name: str, body: str, timeout: int = 120):
+    return run_matlab_export(
+        name,
+        textwrap.dedent(
+            f"""
+            addpath(genpath('{matlab_path(FLAM_REF)}'));
+            {body}
+            """
+        ),
+        timeout=timeout,
+    )
+
+
 class MatlabParityTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        missing = [str(path) for path in (MATLAB, FLAM_REF) if not path.exists()]
-        if missing:
-            raise RuntimeError("MATLAB parity tests require: " + ", ".join(missing))
+        require_paths(MATLAB, FLAM_REF, label="MATLAB parity tests")
 
     def test_hypoct_layout_and_permutation(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            out = Path(tmp) / "hypoct_parity.mat"
-            script = Path(tmp) / "run_hypoct_parity.m"
-            script.write_text(
-                textwrap.dedent(
-                    f"""
-                    addpath(genpath('{str(FLAM_REF).replace("'", "''")}'));
+        data = _run_flam_export(
+            "hypoct_parity",
+            """
                     x = [0.1 0.2 0.9 0.8 0.45 0.55 0.12 0.88;
                          0.1 0.85 0.2 0.75 0.52 0.48 0.9 0.05];
                     t = hypoct(x,2,Inf,[]);
@@ -76,20 +88,10 @@ class MatlabParityTests(unittest.TestCase):
                     nlvl = t.nlvl;
                     lvp = t.lvp;
                     l = t.l;
-                    save('{str(out).replace("'", "''")}','x','p','nlvl','lvp','l','leaf_counts','nbor_counts','chld_counts');
+                    save('__OUT__','x','p','nlvl','lvp','l','leaf_counts','nbor_counts','chld_counts');
                     exit;
-                    """
-                )
-            )
-            subprocess.run(
-                [str(MATLAB), "-batch", f"run('{script.as_posix()}')"],
-                check=True,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                timeout=120,
-            )
-            data = scipy.io.loadmat(out)
+            """,
+        )
 
         tree = hypoct(data["x"], 2)
         np.testing.assert_array_equal(hypoct_perm(tree), data["p"].ravel().astype(np.int64) - 1)
@@ -101,33 +103,19 @@ class MatlabParityTests(unittest.TestCase):
         np.testing.assert_array_equal([len(node.chld) for node in tree.nodes], data["chld_counts"].ravel())
 
     def test_id_fixed_columns(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            out = Path(tmp) / "id_parity.mat"
-            script = Path(tmp) / "run_id_parity.m"
-            script.write_text(
-                textwrap.dedent(
-                    f"""
-                    addpath(genpath('{str(FLAM_REF).replace("'", "''")}'));
+        data = _run_flam_export(
+            "id_parity",
+            """
                     A = [1 2 3 4 5 6;
                          0 1 1 2 3 5;
                          2 1 0 1 0 2;
                          3 5 8 13 21 34;
                          1 -1 2 -2 3 -3] / 17;
                     [sk,rd,T,niter] = id(A,3+1e-12,2,Inf,[2 5]);
-                    save('{str(out).replace("'", "''")}','A','sk','rd','T','niter');
+                    save('__OUT__','A','sk','rd','T','niter');
                     exit;
-                    """
-                )
-            )
-            subprocess.run(
-                [str(MATLAB), "-batch", f"run('{script.as_posix()}')"],
-                check=True,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                timeout=120,
-            )
-            data = scipy.io.loadmat(out)
+            """,
+        )
 
         sk, rd, T, niter = id(data["A"], 3 + 1e-12, 2, np.inf, fixed=[1, 4], return_niter=True)
         np.testing.assert_array_equal(sk, data["sk"].ravel().astype(np.int64) - 1)
@@ -136,13 +124,9 @@ class MatlabParityTests(unittest.TestCase):
         self.assertEqual(niter, int(data["niter"].ravel()[0]))
 
     def test_hifie_compression_callbacks(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            out = Path(tmp) / "hifie_callbacks.mat"
-            script = Path(tmp) / "run_hifie_callbacks.m"
-            script.write_text(
-                textwrap.dedent(
-                    f"""
-                    addpath(genpath('{str(FLAM_REF).replace("'", "''")}'));
+        data = _run_flam_export(
+            "hifie_callbacks",
+            """
                     K = [1 2 1 0 3 1;
                          0 1 2 1 1 0;
                          2 0 1 3 0 1;
@@ -154,20 +138,10 @@ class MatlabParityTests(unittest.TestCase):
                           0 1 0 1 0 0];
                     [sk1,rd1,T1] = hifie_id(K,K1,K2,3,2,Inf);
                     [sk2,rd2,T2] = hifie_idx(K,K1,K2,3,2,Inf);
-                    save('{str(out).replace("'", "''")}','K','K1','K2','sk1','rd1','T1','sk2','rd2','T2');
+                    save('__OUT__','K','K1','K2','sk1','rd1','T1','sk2','rd2','T2');
                     exit;
-                    """
-                )
-            )
-            subprocess.run(
-                [str(MATLAB), "-batch", f"run('{script.as_posix()}')"],
-                check=True,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                timeout=120,
-            )
-            data = scipy.io.loadmat(out)
+            """,
+        )
 
         sk, rd, T = hifie_id(data["K"], data["K1"], data["K2"], 3, 2, np.inf)
         np.testing.assert_array_equal(sk, data["sk1"].ravel().astype(np.int64) - 1)
@@ -180,13 +154,9 @@ class MatlabParityTests(unittest.TestCase):
         np.testing.assert_allclose(T, data["T2"], rtol=1e-12, atol=1e-12)
 
     def test_rskelf_small_apply_and_solve(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            out = Path(tmp) / "parity.mat"
-            script = Path(tmp) / "run_parity.m"
-            script.write_text(
-                textwrap.dedent(
-                    f"""
-                    addpath(genpath('{str(FLAM_REF).replace("'", "''")}'));
+        data = _run_flam_export(
+            "parity",
+            """
                     n = 8;
                     x = linspace(0,1,n);
                     A = @(i,j) 1./(1 + abs(reshape(x(i),[],1) - reshape(x(j),1,[]))) + 2*(i(:)==j(:)');
@@ -195,20 +165,10 @@ class MatlabParityTests(unittest.TestCase):
                     Ymv = rskelf_mv(F,X);
                     Ysv = rskelf_sv(F,X);
                     Ad = A(1:n,1:n);
-                    save('{str(out).replace("'", "''")}','Ad','X','Ymv','Ysv');
+                    save('__OUT__','Ad','X','Ymv','Ysv');
                     exit;
-                    """
-                )
-            )
-            subprocess.run(
-                [str(MATLAB), "-batch", f"run('{script.as_posix()}')"],
-                check=True,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                timeout=120,
-            )
-            data = scipy.io.loadmat(out)
+            """,
+        )
 
         A = data["Ad"]
         X = data["X"]
@@ -218,33 +178,19 @@ class MatlabParityTests(unittest.TestCase):
         np.testing.assert_allclose(rskelf_sv(F, X), data["Ysv"], rtol=1e-9, atol=1e-9)
 
     def test_rskelf_partial_logdet(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            out = Path(tmp) / "partial_logdet.mat"
-            script = Path(tmp) / "run_partial_logdet.m"
-            script.write_text(
-                textwrap.dedent(
-                    f"""
-                    addpath(genpath('{str(FLAM_REF).replace("'", "''")}'));
+        data = _run_flam_export(
+            "partial_logdet",
+            """
                     n = 18;
                     x = linspace(0,1,n);
                     A = @(i,j) 1./(1 + abs(reshape(x(i),[],1) - reshape(x(j),1,[]))) + 2*(i(:)==j(:)');
                     F = rskelf(A,x,3,1e-10,[],struct('symm','n','stop',3));
                     ld = rskelf_logdet(F);
                     Ad = A(1:n,1:n);
-                    save('{str(out).replace("'", "''")}','Ad','ld');
+                    save('__OUT__','Ad','ld');
                     exit;
-                    """
-                )
-            )
-            subprocess.run(
-                [str(MATLAB), "-batch", f"run('{script.as_posix()}')"],
-                check=True,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                timeout=120,
-            )
-            data = scipy.io.loadmat(out)
+            """,
+        )
 
         x = np.linspace(0.0, 1.0, 18).reshape(1, -1)
         F = rskelf(data["Ad"], x, 3, 1e-10, opts={"symm": "n", "stop": 3})
@@ -252,13 +198,9 @@ class MatlabParityTests(unittest.TestCase):
         np.testing.assert_allclose(rskelf_logdet(F), data["ld"].ravel()[0], rtol=1e-9, atol=1e-9)
 
     def test_rskelf_partial_apply_and_solve(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            out = Path(tmp) / "partial_apply.mat"
-            script = Path(tmp) / "run_partial_apply.m"
-            script.write_text(
-                textwrap.dedent(
-                    f"""
-                    addpath(genpath('{str(FLAM_REF).replace("'", "''")}'));
+        data = _run_flam_export(
+            "partial_apply",
+            """
                     n = 18;
                     x = linspace(0,1,n);
                     A = @(i,j) 1./(1 + abs(reshape(x(i),[],1) - reshape(x(j),1,[]))) + 2*(i(:)==j(:)');
@@ -267,20 +209,10 @@ class MatlabParityTests(unittest.TestCase):
                     Ymv = rskelf_mv(F,X);
                     Ysv = rskelf_sv(F,X);
                     Ad = A(1:n,1:n);
-                    save('{str(out).replace("'", "''")}','Ad','X','Ymv','Ysv');
+                    save('__OUT__','Ad','X','Ymv','Ysv');
                     exit;
-                    """
-                )
-            )
-            subprocess.run(
-                [str(MATLAB), "-batch", f"run('{script.as_posix()}')"],
-                check=True,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                timeout=120,
-            )
-            data = scipy.io.loadmat(out)
+            """,
+        )
 
         x = np.linspace(0.0, 1.0, 18).reshape(1, -1)
         F = rskelf(data["Ad"], x, 3, 1e-10, opts={"symm": "n", "stop": 3})
@@ -289,13 +221,9 @@ class MatlabParityTests(unittest.TestCase):
         np.testing.assert_allclose(rskelf_sv(F, data["X"]), data["Ysv"], rtol=1e-9, atol=1e-9)
 
     def test_rskelf_partial_info(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            out = Path(tmp) / "partial_info.mat"
-            script = Path(tmp) / "run_partial_info.m"
-            script.write_text(
-                textwrap.dedent(
-                    f"""
-                    addpath(genpath('{str(FLAM_REF).replace("'", "''")}'));
+        data = _run_flam_export(
+            "partial_info",
+            """
                     n = 18;
                     x = linspace(0,1,n);
                     A = @(i,j) 1./(1 + abs(reshape(x(i),[],1) - reshape(x(j),1,[]))) + 2*(i(:)==j(:)');
@@ -305,20 +233,10 @@ class MatlabParityTests(unittest.TestCase):
                     if isfield(F,'Si'), sk = F.Si; else, sk = []; end
                     if isfield(F,'S'), S = F.S; else, S = sparse(0,0); end
                     Ad = A(1:n,1:n);
-                    save('{str(out).replace("'", "''")}','Ad','sk','S');
+                    save('__OUT__','Ad','sk','S');
                     exit;
-                    """
-                )
-            )
-            subprocess.run(
-                [str(MATLAB), "-batch", f"run('{script.as_posix()}')"],
-                check=True,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                timeout=120,
-            )
-            data = scipy.io.loadmat(out)
+            """,
+        )
 
         x = np.linspace(0.0, 1.0, 18).reshape(1, -1)
         F = rskelf(data["Ad"], x, 3, 1e-10, opts={"symm": "n", "stop": 3})
@@ -329,13 +247,9 @@ class MatlabParityTests(unittest.TestCase):
         np.testing.assert_allclose((S - data["S"]).toarray(), 0, rtol=1e-8, atol=1e-8)
 
     def test_rskel_apply_and_extended_sparse(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            out = Path(tmp) / "rskel_parity.mat"
-            script = Path(tmp) / "run_rskel_parity.m"
-            script.write_text(
-                textwrap.dedent(
-                    f"""
-                    addpath(genpath('{str(FLAM_REF).replace("'", "''")}'));
+        data = _run_flam_export(
+            "rskel_parity",
+            """
                     n = 9;
                     rx = linspace(0,1,n);
                     cx = linspace(0.05,0.95,n-1);
@@ -353,20 +267,10 @@ class MatlabParityTests(unittest.TestCase):
                     nd = length(F.D);
                     nu = length(F.U);
                     Ad = A(1:n,1:n-1);
-                    save('{str(out).replace("'", "''")}','Ad','X','Z','Ymv','Yadj','P','Q','lvpd','lvpu','nd','nu','S','p','q');
+                    save('__OUT__','Ad','X','Z','Ymv','Yadj','P','Q','lvpd','lvpu','nd','nu','S','p','q');
                     exit;
-                    """
-                )
-            )
-            subprocess.run(
-                [str(MATLAB), "-batch", f"run('{script.as_posix()}')"],
-                check=True,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                timeout=120,
-            )
-            data = scipy.io.loadmat(out)
+            """,
+        )
 
         rx = np.linspace(0.0, 1.0, 9).reshape(1, -1)
         cx = np.linspace(0.05, 0.95, 8).reshape(1, -1)
@@ -388,13 +292,9 @@ class MatlabParityTests(unittest.TestCase):
         np.testing.assert_array_equal(q, data["q"].ravel().astype(np.int64) - 1)
 
     def test_ifmm_small_apply_and_adjoint(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            out = Path(tmp) / "ifmm_parity.mat"
-            script = Path(tmp) / "run_ifmm_parity.m"
-            script.write_text(
-                textwrap.dedent(
-                    f"""
-                    addpath(genpath('{str(FLAM_REF).replace("'", "''")}'));
+        data = _run_flam_export(
+            "ifmm_parity",
+            """
                     rx = linspace(0,1,9);
                     cx = linspace(0.05,0.95,7);
                     A = @(i,j) 1./(1 + abs(reshape(rx(i),[],1) - reshape(cx(j),1,[])));
@@ -411,20 +311,10 @@ class MatlabParityTests(unittest.TestCase):
                     nb = length(F.B);
                     nu = length(F.U);
                     Ad = A(1:length(rx),1:length(cx));
-                    save('{str(out).replace("'", "''")}','Ad','X','Z','Ymv','Yadj','P','Q','lvpb','lvpu','nb','nu');
+                    save('__OUT__','Ad','X','Z','Ymv','Yadj','P','Q','lvpb','lvpu','nb','nu');
                     exit;
-                    """
-                )
-            )
-            subprocess.run(
-                [str(MATLAB), "-batch", f"run('{script.as_posix()}')"],
-                check=True,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                timeout=120,
-            )
-            data = scipy.io.loadmat(out)
+            """,
+        )
 
         A = data["Ad"]
         X = data["X"]
@@ -443,13 +333,9 @@ class MatlabParityTests(unittest.TestCase):
         np.testing.assert_allclose(ifmm_mv(F, Z, trans="c"), data["Yadj"], rtol=1e-9, atol=1e-9)
 
     def test_mf2_grid_operator(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            out = Path(tmp) / "mf2_parity.mat"
-            script = Path(tmp) / "run_mf2_parity.m"
-            script.write_text(
-                textwrap.dedent(
-                    f"""
-                    addpath(genpath('{str(FLAM_REF).replace("'", "''")}'));
+        data = _run_flam_export(
+            "mf2_parity",
+            """
                     n = 4;
                     N = (n-1)^2;
                     e = ones(N,1);
@@ -461,20 +347,10 @@ class MatlabParityTests(unittest.TestCase):
                     ld = mf_logdet(F);
                     D = mf_diag(F);
                     Di = mf_diag(F,1);
-                    save('{str(out).replace("'", "''")}','A','X','Ymv','Ysv','ld','D','Di');
+                    save('__OUT__','A','X','Ymv','Ysv','ld','D','Di');
                     exit;
-                    """
-                )
-            )
-            subprocess.run(
-                [str(MATLAB), "-batch", f"run('{script.as_posix()}')"],
-                check=True,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                timeout=120,
-            )
-            data = scipy.io.loadmat(out)
+            """,
+        )
 
         F = mf2(data["A"], n=4, occ=2)
         np.testing.assert_allclose(mf_mv(F, data["X"]), data["Ymv"], rtol=1e-9, atol=1e-9)
@@ -484,13 +360,9 @@ class MatlabParityTests(unittest.TestCase):
         np.testing.assert_allclose(mf_diag(F, True), data["Di"].ravel(), rtol=1e-9, atol=1e-9)
 
     def test_hifde2_grid_operator(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            out = Path(tmp) / "hifde2_parity.mat"
-            script = Path(tmp) / "run_hifde2_parity.m"
-            script.write_text(
-                textwrap.dedent(
-                    f"""
-                    addpath(genpath('{str(FLAM_REF).replace("'", "''")}'));
+        data = _run_flam_export(
+            "hifde2_parity",
+            """
                     n = 4;
                     N = (n-1)^2;
                     e = ones(N,1);
@@ -502,20 +374,10 @@ class MatlabParityTests(unittest.TestCase):
                     ld = hifde_logdet(F);
                     D = hifde_diag(F);
                     Di = hifde_diag(F,1);
-                    save('{str(out).replace("'", "''")}','A','X','Ymv','Ysv','ld','D','Di');
+                    save('__OUT__','A','X','Ymv','Ysv','ld','D','Di');
                     exit;
-                    """
-                )
-            )
-            subprocess.run(
-                [str(MATLAB), "-batch", f"run('{script.as_posix()}')"],
-                check=True,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                timeout=120,
-            )
-            data = scipy.io.loadmat(out)
+            """,
+        )
 
         F = hifde2(data["A"], n=4, occ=2, rank_or_tol=1e-10)
         np.testing.assert_allclose(hifde_mv(F, data["X"]), data["Ymv"], rtol=1e-9, atol=1e-9)
@@ -528,9 +390,7 @@ class MatlabParityTests(unittest.TestCase):
 class ChunkIEStyleRSkelfParityTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        missing = [str(path) for path in (MATLAB, FLAM_REF, CHUNKIE_REF) if not path.exists()]
-        if missing:
-            raise RuntimeError("ChunkIE parity tests require: " + ", ".join(missing))
+        require_paths(MATLAB, FLAM_REF, CHUNKIE_REF, label="ChunkIE parity tests")
 
     def test_laplace_dirichlet_starfish_rskelf_callback(self):
         self._run_chunkie_rskelf_case("laplace_d")
@@ -539,19 +399,7 @@ class ChunkIEStyleRSkelfParityTests(unittest.TestCase):
         self._run_chunkie_rskelf_case("helmholtz_d")
 
     def _run_chunkie_rskelf_case(self, kernel_kind: str):
-        with tempfile.TemporaryDirectory() as tmp:
-            out = Path(tmp) / f"chunkie_{kernel_kind}.mat"
-            script = Path(tmp) / f"run_chunkie_{kernel_kind}.m"
-            _write_chunkie_rskelf_driver(script, out, kernel_kind)
-            subprocess.run(
-                [str(MATLAB), "-batch", f"run('{script.as_posix()}')"],
-                check=True,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                timeout=240,
-            )
-            data = scipy.io.loadmat(out)
+        data = run_matlab_export(f"chunkie_{kernel_kind}", _chunkie_rskelf_driver_body(kernel_kind), timeout=240)
 
         op = _ChunkIERSkelfOperator(data, kernel_kind)
         n = data["sys"].shape[0]
@@ -580,7 +428,7 @@ class ChunkIEStyleRSkelfParityTests(unittest.TestCase):
         self.assertLess(_logdet_mod_error(rskelf_logdet(F), data["ld"].item()), 1e-9)
 
 
-def _write_chunkie_rskelf_driver(script: Path, out: Path, kernel_kind: str) -> None:
+def _chunkie_rskelf_driver_body(kernel_kind: str) -> str:
     if kernel_kind == "laplace_d":
         kernel_setup = "zk = 0; fkern = @(s,t) chnk.lap2d.kern(s,t,'D');"
         rhs_setup = "X = reshape(sin((1:(3*chnkr.npt))/37), chnkr.npt, 3);"
@@ -590,12 +438,11 @@ def _write_chunkie_rskelf_driver(script: Path, out: Path, kernel_kind: str) -> N
     else:
         raise ValueError(f"unknown ChunkIE kernel case: {kernel_kind}")
 
-    script.write_text(
-        textwrap.dedent(
-            f"""
-            cd('{_matlab_path(CHUNKIE_REF)}');
+    return textwrap.dedent(
+        f"""
+            cd('{matlab_path(CHUNKIE_REF)}');
             addpath('./chunkie');
-            addpath(genpath('{_matlab_path(FLAM_REF)}'));
+            addpath(genpath('{matlab_path(FLAM_REF)}'));
             rng(8675309);
 
             cparams = [];
@@ -635,11 +482,10 @@ def _write_chunkie_rskelf_driver(script: Path, out: Path, kernel_kind: str) -> N
             Ysv = rskelf_sv(F, X);
             ld = rskelf_logdet(F);
 
-            save('{_matlab_path(out)}','sys','spmat','r','dd','d2','nn','wts','xflam', ...
+            save('__OUT__','sys','spmat','r','dd','d2','nn','wts','xflam', ...
                  'occ','tol','X','Ymv','Ysv','ld','pr','ptau','pw','zk','-v7');
             exit;
             """
-        )
     )
 
 
@@ -699,21 +545,6 @@ class _ChunkIERSkelfOperator:
             grad_x = -0.25j * self.zk * h1 * rx / r
             grad_y = -0.25j * self.zk * h1 * ry / r
             return -(grad_x * src_n[0, None, :] + grad_y * src_n[1, None, :])
-
-
-def _matlab_path(path: Path) -> str:
-    return str(path).replace("\\", "/").replace("'", "''")
-
-
-def _relerr(a, b) -> float:
-    return float(np.linalg.norm(a - b) / max(np.linalg.norm(b), 1e-300))
-
-
-def _logdet_mod_error(a, b) -> float:
-    diff = np.asarray(a).item() - np.asarray(b).item()
-    if abs(diff.imag):
-        diff = diff - 2j * np.pi * np.round(diff.imag / (2 * np.pi))
-    return float(abs(diff))
 
 
 if __name__ == "__main__":

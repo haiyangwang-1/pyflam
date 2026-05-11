@@ -28,14 +28,14 @@ bug instead of silently skipping.
 
 - [x] Keep MATLAB parity tests non-skipping by default. Missing MATLAB, FLAM, or
       ChunkIE should produce a clear failure.
-- [ ] Consolidate repeated MATLAB driver code in `tests/test_matlab_parity.py`
+- [x] Consolidate repeated MATLAB driver code in `tests/test_matlab_parity.py`
       into helper functions for writing scripts, running MATLAB, and loading
       `.mat` files.
 - [x] Add helpers for logdet branch comparison modulo `2*pi*i`.
 - [x] Add helpers for exporting FLAM factor metadata needed for structural
       comparisons: level pointers, factor counts, skeleton/redundant sizes,
       sparse correction nnz, and proxy-call evidence.
-- [ ] Preserve the existing two ChunkIE-style `rskelf` parity tests:
+- [x] Preserve the existing two ChunkIE-style `rskelf` parity tests:
       Laplace Dirichlet starfish and Helmholtz Dirichlet starfish.
 - [x] Add at least two more ChunkIE-derived tests from
       `chunkie/devtools/test`, prioritizing cases that use near/self quadrature
