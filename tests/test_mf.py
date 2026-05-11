@@ -42,6 +42,9 @@ class MultifontalTests(unittest.TestCase):
 
         self.assertEqual(F.N, A.shape[0])
         self.assertEqual(F.lvp[-1], len(F.factors))
+        self.assertIsNone(F.A_dense)
+        self.assertIsNotNone(F.A_sparse)
+        self.assertIsNotNone(F.splu)
         np.testing.assert_allclose(mf_mv(F, X), A @ X)
         np.testing.assert_allclose(mf_mv(F, X, "t"), A.T @ X)
         np.testing.assert_allclose(mf_sv(F, X), np.linalg.solve(A, X))

@@ -14,6 +14,7 @@ from typing import Any
 import numpy as np
 import scipy.linalg as la
 import scipy.sparse as sp
+import scipy.sparse.linalg as spla
 
 from ._matrix import apply_transpose, materialize
 from .core import StructMixin, _as_points, _normalise_opts, chksymm, chktrans, detperm, hypoct
@@ -39,7 +40,9 @@ class MFFactor(StructMixin):
     symm: str = "n"
     A: Any = None
     A_dense: np.ndarray | None = None
+    A_sparse: sp.spmatrix | None = None
     lu: tuple[np.ndarray, np.ndarray] | None = None
+    splu: spla.SuperLU | None = None
     chol: np.ndarray | None = None
     tree: Any = None
     opts: dict[str, Any] = field(default_factory=dict)
@@ -96,9 +99,12 @@ def mf_mv(F: MFFactor, X, trans: str = "n") -> np.ndarray:
 
     trans = chktrans(trans)
     X_arr, one_dim = _as_rhs(X)
-    if F.A_dense is None:
+    if F.A_sparse is not None:
+        Y = _sparse_apply(F.A_sparse, X_arr, trans)
+    elif F.A_dense is not None:
+        Y = apply_transpose(F.A_dense, X_arr, trans)
+    else:
         raise ValueError("factor does not contain matrix data")
-    Y = apply_transpose(F.A_dense, X_arr, trans)
     return Y[:, 0] if one_dim else Y
 
 
@@ -111,6 +117,8 @@ def mf_sv(F: MFFactor, X, trans: str = "n") -> np.ndarray:
         Y = np.conj(mf_sv(F, np.conj(X_arr), "c"))
     elif F.chol is not None and trans == "n":
         Y = la.cho_solve((F.chol, True), X_arr)
+    elif F.splu is not None:
+        Y = F.splu.solve(X_arr, trans={"n": "N", "t": "T", "c": "H"}[trans])
     elif F.lu is not None:
         lu_trans = 0 if trans == "n" else 2
         Y = la.lu_solve(F.lu, X_arr, trans=lu_trans)
@@ -127,10 +135,20 @@ def mf_logdet(F: MFFactor):
 
     if F.chol is not None:
         return 2 * np.sum(np.log(np.diag(F.chol).astype(np.result_type(F.chol, complex))))
+    if F.splu is not None:
+        diag_u = F.splu.U.diagonal()
+        ld = np.sum(np.log(diag_u.astype(np.result_type(diag_u, complex))))
+        ld += np.log(np.asarray(detperm(F.splu.perm_r), dtype=complex))
+        ld += np.log(np.asarray(detperm(F.splu.perm_c), dtype=complex))
+        return float(ld.real) + 1j * float(np.mod(ld.imag, 2 * np.pi))
     if F.factors and F.factors[0].U is not None and F.factors[0].p is not None:
         block = F.factors[0]
+        if sp.issparse(block.U):
+            diag_u = block.U.diagonal()
+        else:
+            diag_u = np.diag(block.U)
         sign = detperm(block.p)
-        ld = np.sum(np.log(np.diag(block.U).astype(np.result_type(block.U, complex))))
+        ld = np.sum(np.log(diag_u.astype(np.result_type(diag_u, complex))))
         return ld + np.log(np.asarray(sign, dtype=complex))
     if F.A_dense is None:
         raise ValueError("factor does not contain matrix data")
@@ -171,6 +189,10 @@ def mf_cholsv(F: MFFactor, X, trans: str = "n") -> np.ndarray:
 def mf_diag(F: MFFactor, dinv: bool | int = False, opts: dict[str, Any] | None = None) -> np.ndarray:
     """Extract ``diag(A)`` or ``diag(inv(A))`` from an MF factor."""
 
+    if F.A_sparse is not None:
+        if dinv:
+            return np.diag(mf_sv(F, np.eye(F.N, dtype=F.A_sparse.dtype)))
+        return F.A_sparse.diagonal().copy()
     if F.A_dense is None:
         raise ValueError("factor does not contain matrix data")
     if dinv:
@@ -192,7 +214,9 @@ def _mf_symm(symm: str | None) -> str:
 def _make_factor(A, N: int, opts: dict[str, Any], tree: Any = None) -> MFFactor:
     if N < 0:
         raise ValueError("matrix dimension must be nonnegative")
-    A_dense = _materialize_square(A, N)
+    A_sparse = _as_square_sparse(A, N)
+    A_dense = None if A_sparse is not None and opts["symm"] != "p" else _materialize_square(A, N)
+    splu = None
     if opts["symm"] == "p":
         chol = np.linalg.cholesky(A_dense)
         lu = None
@@ -200,6 +224,17 @@ def _make_factor(A, N: int, opts: dict[str, Any], tree: Any = None) -> MFFactor:
             sk=np.array([], dtype=np.int64),
             rd=np.arange(N, dtype=np.int64),
             L=chol,
+        )
+    elif A_sparse is not None:
+        splu = spla.splu(A_sparse.tocsc())
+        lu = None
+        chol = None
+        block = MFFactorBlock(
+            sk=np.array([], dtype=np.int64),
+            rd=np.arange(N, dtype=np.int64),
+            L=splu.L,
+            U=splu.U,
+            p=np.asarray(splu.perm_r, dtype=np.int64),
         )
     else:
         lu = la.lu_factor(A_dense)
@@ -220,7 +255,9 @@ def _make_factor(A, N: int, opts: dict[str, Any], tree: Any = None) -> MFFactor:
         symm=opts["symm"],
         A=A,
         A_dense=A_dense,
+        A_sparse=A_sparse,
         lu=lu,
+        splu=splu,
         chol=chol,
         tree=tree,
         opts=dict(opts),
@@ -233,6 +270,22 @@ def _materialize_square(A, N: int) -> np.ndarray:
             raise ValueError(f"matrix has shape {A.shape}, expected {(N, N)}")
         return np.asarray(A.toarray())
     return materialize(A, N, N)
+
+
+def _as_square_sparse(A, N: int) -> sp.spmatrix | None:
+    if not sp.issparse(A):
+        return None
+    if A.shape != (N, N):
+        raise ValueError(f"matrix has shape {A.shape}, expected {(N, N)}")
+    return A.tocsc()
+
+
+def _sparse_apply(A: sp.spmatrix, X: np.ndarray, trans: str) -> np.ndarray:
+    if trans == "n":
+        return A @ X
+    if trans == "t":
+        return A.T @ X
+    return A.conj().T @ X
 
 
 def _lu_block(lu: tuple[np.ndarray, np.ndarray], n: int) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
