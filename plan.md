@@ -90,7 +90,7 @@ bug instead of silently skipping.
 - [x] Add complex rectangular cases.
 - [x] Add proxy-callback parity for row and column proxy paths.
 - [x] Add full `rskel_xsp` parity for symmetric/Hermitian/positive cases.
-- [ ] Verify `rskel_mv` for `trans='n'`, `'t'`, and `'c'`.
+- [x] Verify `rskel_mv` for `trans='n'`, `'t'`, and `'c'`.
 - [ ] Ensure callback-based factors avoid eager dense materialization.
 - [ ] Cover representative upstream tests under `FLAM/rskel/test`.
 
