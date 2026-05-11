@@ -48,6 +48,10 @@ def _rect_proxy_callbacks(rx, cx):
     return Afun, pxyfun, calls
 
 
+def _line_kernel(x, y):
+    return np.abs(np.asarray(x).reshape(-1, 1) - np.asarray(y).reshape(1, -1))
+
+
 class IFMMOptionParityTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -356,6 +360,87 @@ class IFMMOptionParityTests(unittest.TestCase):
         np.testing.assert_allclose(ifmm_mv(F, data["Xn"], trans="n"), data["Yn"], rtol=1e-9, atol=1e-9)
         np.testing.assert_allclose(ifmm_mv(F, data["Xm"], trans="t"), data["Yt"], rtol=1e-9, atol=1e-9)
         np.testing.assert_allclose(ifmm_mv(F, data["Xm"], trans="c"), data["Yc"], rtol=1e-9, atol=1e-9)
+
+    def test_upstream_mv_expline_proxy_case_matches_matlab(self):
+        data = run_matlab_export(
+            "ifmm_upstream_mv_expline",
+            textwrap.dedent(
+                f"""
+                addpath(genpath('{str(FLAM_REF).replace("'", "''")}'));
+                n = 24;
+                occ = 6;
+                p = 4;
+                x = 2.^(-(1:n));
+                proxy = linspace(1.5,2.5,p);
+                proxy = [-proxy proxy];
+                Afun = @(i,j) abs(reshape(x(i),[],1) - reshape(x(j),1,[]));
+                pxyfun = @(rc,rx,cx,slf,nbr,l,ctr) pxyfun_(rc,rx,cx,slf,nbr,l,ctr,proxy);
+                X = reshape((0:(2*n-1))/31,n,2);
+                Z = reshape((0:(2*n-1))/37,n,2);
+                F = ifmm(Afun,x,x,occ,1e-10,pxyfun,struct('store','n','near',0,'symm','s'));
+                Ymv = ifmm_mv(F,X,Afun,'n');
+                Yadj = ifmm_mv(F,Z,Afun,'c');
+                P = F.P;
+                lvpb = F.lvpb;
+                lvpu = F.lvpu;
+                nb = length(F.B);
+                nu = length(F.U);
+                save('__OUT__','x','X','Z','Ymv','Yadj','P','lvpb','lvpu','nb','nu');
+                exit;
+
+                function [Kpxy,nbr] = pxyfun_(rc,rx,cx,slf,nbr,l,ctr,proxy)
+                  pxy = proxy.*l + ctr;
+                  if rc == 'r'
+                    Kpxy = abs(reshape(rx(slf),[],1) - reshape(pxy,1,[]));
+                    dr = cx(nbr) - ctr;
+                  else
+                    Kpxy = abs(reshape(pxy,[],1) - reshape(cx(slf),1,[]));
+                    dr = rx(nbr) - ctr;
+                  end
+                  nbr = nbr(abs(dr)/l < 1.5);
+                end
+                """
+            ),
+        )
+
+        x = data["x"].reshape(-1)
+        proxy = np.concatenate((-np.linspace(1.5, 2.5, 4), np.linspace(1.5, 2.5, 4)))
+        calls = {"matrix": 0, "proxy": 0}
+
+        def Afun(i, j):
+            calls["matrix"] += 1
+            i = np.asarray(i, dtype=np.int64).reshape(-1)
+            j = np.asarray(j, dtype=np.int64).reshape(-1)
+            return _line_kernel(x[i], x[j])
+
+        def pxyfun(rc, rx, cx, slf, nbr, l, ctr):
+            calls["proxy"] += 1
+            slf = np.asarray(slf, dtype=np.int64).reshape(-1)
+            nbr = np.asarray(nbr, dtype=np.int64).reshape(-1)
+            width = float(np.asarray(l).reshape(-1)[0])
+            center = float(np.asarray(ctr).reshape(-1)[0])
+            pxy = proxy * width + center
+            if rc == "r":
+                out = _line_kernel(x[slf], pxy)
+                dr = x[nbr] - center
+            else:
+                out = _line_kernel(pxy, x[slf])
+                dr = x[nbr] - center
+            return out, nbr[np.abs(dr) / width < 1.5]
+
+        F = ifmm(Afun, x.reshape(1, -1), x.reshape(1, -1), occ=6, rank_or_tol=1e-10, pxyfun=pxyfun, opts={"store": "n", "near": 0, "symm": "s"})
+
+        self.assertGreater(calls["proxy"], 0)
+        np.testing.assert_array_equal(F.P, data["P"].ravel().astype(np.int64) - 1)
+        np.testing.assert_array_equal(F.lvpb, data["lvpb"].ravel().astype(np.int64))
+        np.testing.assert_array_equal(F.lvpu, data["lvpu"].ravel().astype(np.int64))
+        self.assertEqual(len(F.B), int(data["nb"].ravel()[0]))
+        self.assertEqual(len(F.U), int(data["nu"].ravel()[0]))
+        Ymv = ifmm_mv(F, data["X"], Afun, trans="n")
+        Yadj = ifmm_mv(F, data["Z"], Afun, trans="c")
+        self.assertGreater(calls["matrix"], 0)
+        np.testing.assert_allclose(Ymv, data["Ymv"], rtol=1e-9, atol=1e-9)
+        np.testing.assert_allclose(Yadj, data["Yadj"], rtol=1e-9, atol=1e-9)
 
 
 if __name__ == "__main__":

@@ -103,7 +103,7 @@ bug instead of silently skipping.
 - [x] Add rectangular complex matrix parity.
 - [x] Verify `ifmm_mv` for `trans='n'`, `'t'`, and `'c'`.
 - [x] Verify behavior when missing interactions must be supplied through `A`.
-- [ ] Cover representative upstream tests under `FLAM/ifmm/test`.
+- [x] Cover representative upstream tests under `FLAM/ifmm/test`.
 
 ## 6. Complete Stress Coverage
 
