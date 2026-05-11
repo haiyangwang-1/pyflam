@@ -67,7 +67,7 @@ bug instead of silently skipping.
 - [x] Add MATLAB parity for `rskelf` with `symm='h'`.
 - [x] Add MATLAB parity for `rskelf` with `symm='p'`.
 - [x] Add complex matrix parity for each supported symmetry mode.
-- [ ] Add proxy-callback parity for each supported symmetry mode where MATLAB
+- [x] Add proxy-callback parity for each supported symmetry mode where MATLAB
       FLAM supports it.
 - [ ] Add partial-factorization parity for scalar `stop` and callable/nontrivial
       stop functions.

@@ -16,6 +16,44 @@ if not _DEFAULT_FLAM_REF.exists():
 FLAM_REF = Path(os.environ.get("FLAM_REFERENCE", _DEFAULT_FLAM_REF))
 
 
+def _proxy_kernel(target, source, symm):
+    target = np.asarray(target).reshape(-1, 1)
+    source = np.asarray(source).reshape(1, -1)
+    out = 1.0 / (1.0 + np.abs(target - source))
+    if symm == "n":
+        out = out + 0.05 * (target + 2.0 * source)
+    elif symm == "s":
+        out = out + 0.05 * (target + source)
+    return out
+
+
+def _proxy_case_callbacks(coords, symm):
+    calls = {"matrix": 0, "proxy": 0}
+
+    def Afun(i, j):
+        calls["matrix"] += 1
+        i = np.asarray(i, dtype=np.int64).reshape(-1)
+        j = np.asarray(j, dtype=np.int64).reshape(-1)
+        out = _proxy_kernel(coords[i], coords[j], symm)
+        return out + 3.0 * (i[:, None] == j[None, :])
+
+    def pxyfun(x, slf, nbr, l, ctr):
+        calls["proxy"] += 1
+        slf = np.asarray(slf, dtype=np.int64).reshape(-1)
+        nbr = np.asarray(nbr, dtype=np.int64).reshape(-1)
+        width = float(np.asarray(l).reshape(-1)[0])
+        center = float(np.asarray(ctr).reshape(-1)[0])
+        proxy = center + width * np.array([-1.75, -1.25, 1.25, 1.75])
+        nbr = nbr[np.abs(coords[nbr] - center) <= 1.25 * width]
+        out = _proxy_kernel(proxy, coords[slf], symm)
+        if symm == "n":
+            reverse = _proxy_kernel(coords[slf], proxy, symm)
+            out = np.vstack((out, reverse.T))
+        return out, nbr
+
+    return Afun, pxyfun, calls
+
+
 class RSkelfOptionParityTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -32,6 +70,109 @@ class RSkelfOptionParityTests(unittest.TestCase):
             np.testing.assert_allclose(rskelf_cholmv(F, data["X"]), data["Ycholmv"], rtol=5e-8, atol=5e-8)
             np.testing.assert_allclose(rskelf_cholsv(F, data["X"]), data["Ycholsv"], rtol=5e-8, atol=5e-8)
         self.assertLess(logdet_mod_error(rskelf_logdet(F), data["ld"].item()), 1e-9)
+
+    def assert_proxy_factor_matches_matlab(self, data, symm, n, *, chol=False):
+        coords = np.linspace(0.0, 1.0, n)
+        x = coords.reshape(1, -1)
+        Afun, pxyfun, calls = _proxy_case_callbacks(coords, symm)
+        F = rskelf(Afun, x, occ=2, rank_or_tol=1e-10, pxyfun=pxyfun, opts={"symm": symm})
+
+        self.assertIsNone(F.A_dense)
+        self.assertGreater(calls["matrix"], 0)
+        self.assertGreater(calls["proxy"], 0)
+        self.assertGreater(int(data["proxy_calls"].ravel()[0]), 0)
+        self.assertEqual(len(F.factors), int(data["nfactors"].ravel()[0]))
+        np.testing.assert_allclose(rskelf_mv(F, data["X"]), data["Ymv"], rtol=1e-9, atol=1e-9)
+        np.testing.assert_allclose(rskelf_sv(F, data["X"]), data["Ysv"], rtol=1e-9, atol=1e-9)
+        if chol:
+            np.testing.assert_allclose(rskelf_cholmv(F, data["X"]), data["Ycholmv"], rtol=5e-8, atol=5e-8)
+            np.testing.assert_allclose(rskelf_cholsv(F, data["X"]), data["Ycholsv"], rtol=5e-8, atol=5e-8)
+        self.assertLess(logdet_mod_error(rskelf_logdet(F), data["ld"].item()), 1e-9)
+
+    def export_proxy_case(self, symm, *, chol=False):
+        chol_lines = (
+            """
+                Ycholmv = rskelf_cholmv(F,X);
+                Ycholsv = rskelf_cholsv(F,X);
+            """
+            if chol
+            else """
+                Ycholmv = [];
+                Ycholsv = [];
+            """
+        )
+        return run_matlab_export(
+            f"rskelf_proxy_{symm}",
+            textwrap.dedent(
+                f"""
+                addpath(genpath('{str(FLAM_REF).replace("'", "''")}'));
+                global PYFLAM_PROXY_CALLS;
+                PYFLAM_PROXY_CALLS = 0;
+                n = 24;
+                x = linspace(0,1,n);
+                symm = '{symm}';
+                Afun = @(i,j) Afun_(i,j,x,symm);
+                pxyfun = @(x,slf,nbr,l,ctr) pxyfun_(x,slf,nbr,l,ctr,symm);
+                X = reshape(sin((1:(2*n))/17), n, 2);
+                F = rskelf(Afun,x,2,1e-10,pxyfun,struct('symm',symm));
+                Ymv = rskelf_mv(F,X);
+                Ysv = rskelf_sv(F,X);
+                {textwrap.indent(textwrap.dedent(chol_lines).strip(), "                ")}
+                ld = rskelf_logdet(F);
+                nfactors = length(F.factors);
+                proxy_calls = PYFLAM_PROXY_CALLS;
+                save('__OUT__','X','Ymv','Ysv','Ycholmv','Ycholsv','ld','nfactors','proxy_calls');
+                exit;
+
+                function K = Afun_(i,j,x,symm)
+                  ii = reshape(i,[],1);
+                  jj = reshape(j,1,[]);
+                  xi = reshape(x(i),[],1);
+                  xj = reshape(x(j),1,[]);
+                  K = proxy_kernel_(xi,xj,symm);
+                  K = K + 3*double(ii == jj);
+                end
+
+                function [Kpxy,nbr] = pxyfun_(x,slf,nbr,l,ctr,symm)
+                  global PYFLAM_PROXY_CALLS;
+                  PYFLAM_PROXY_CALLS = PYFLAM_PROXY_CALLS + 1;
+                  proxy = ctr + l*[-1.75 -1.25 1.25 1.75];
+                  keep = abs(x(nbr) - ctr) <= 1.25*l;
+                  nbr = nbr(keep);
+                  Kpxy = proxy_kernel_(reshape(proxy,[],1),reshape(x(slf),1,[]),symm);
+                  if symm == 'n'
+                    reverse = proxy_kernel_(reshape(x(slf),[],1),reshape(proxy,1,[]),symm);
+                    Kpxy = [Kpxy; reverse'];
+                  end
+                end
+
+                function K = proxy_kernel_(target,source,symm)
+                  K = 1./(1 + abs(target - source));
+                  if symm == 'n'
+                    K = K + 0.05*(target + 2*source);
+                  elseif symm == 's'
+                    K = K + 0.05*(target + source);
+                  end
+                end
+                """
+            ),
+        )
+
+    def test_proxy_unsymmetric_mode_matches_matlab(self):
+        data = self.export_proxy_case("n")
+        self.assert_proxy_factor_matches_matlab(data, "n", 24)
+
+    def test_proxy_symmetric_mode_matches_matlab(self):
+        data = self.export_proxy_case("s")
+        self.assert_proxy_factor_matches_matlab(data, "s", 24)
+
+    def test_proxy_hermitian_mode_matches_matlab(self):
+        data = self.export_proxy_case("h")
+        self.assert_proxy_factor_matches_matlab(data, "h", 24)
+
+    def test_proxy_positive_definite_mode_matches_matlab(self):
+        data = self.export_proxy_case("p")
+        self.assert_proxy_factor_matches_matlab(data, "p", 24)
 
     def test_symmetric_mode_matches_matlab(self):
         data = run_matlab_export(
