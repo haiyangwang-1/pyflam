@@ -7,7 +7,15 @@ from pathlib import Path
 import numpy as np
 
 from matlab_parity_utils import MATLAB, logdet_mod_error, require_paths, run_matlab_export
-from pyflam import rskelf, rskelf_cholmv, rskelf_cholsv, rskelf_logdet, rskelf_mv, rskelf_sv
+from pyflam import (
+    rskelf,
+    rskelf_cholmv,
+    rskelf_cholsv,
+    rskelf_logdet,
+    rskelf_mv,
+    rskelf_partial_info,
+    rskelf_sv,
+)
 
 
 _DEFAULT_FLAM_REF = Path(tempfile.gettempdir()) / "flam-reference"
@@ -173,6 +181,53 @@ class RSkelfOptionParityTests(unittest.TestCase):
     def test_proxy_positive_definite_mode_matches_matlab(self):
         data = self.export_proxy_case("p")
         self.assert_proxy_factor_matches_matlab(data, "p", 24)
+
+    def test_callable_stop_matches_matlab_partial_factorization(self):
+        data = run_matlab_export(
+            "rskelf_callable_stop",
+            textwrap.dedent(
+                f"""
+                addpath(genpath('{str(FLAM_REF).replace("'", "''")}'));
+                n = 24;
+                x = linspace(0,1,n);
+                A = @(i,j) 1./(1 + abs(reshape(x(i),[],1) - reshape(x(j),1,[]))) ...
+                    + 2*double(reshape(i,[],1) == reshape(j,1,[]));
+                X = reshape((0:(2*n-1))/37,n,2);
+                stopfun = @(lvl,l)(lvl >= 2 && l <= 0.26);
+                F = rskelf(A,x,2,1e-10,[],struct('symm','n','stop',stopfun));
+                Ymv = rskelf_mv(F,X);
+                Ysv = rskelf_sv(F,X);
+                ld = rskelf_logdet(F);
+                if isfield(F,'Si'), sk = F.Si; else, sk = []; end
+                if isfield(F,'S'), S = F.S; else, S = sparse(0,0); end
+                nfactors = length(F.factors);
+                Ad = A(1:n,1:n);
+                save('__OUT__','Ad','X','Ymv','Ysv','ld','sk','S','nfactors');
+                exit;
+                """
+            ),
+        )
+
+        x = np.linspace(0.0, 1.0, 24).reshape(1, -1)
+        stop_calls = []
+
+        def stopfun(lvl, width):
+            stop_calls.append((lvl, float(np.asarray(width).reshape(-1)[0])))
+            return lvl >= 2 and float(np.asarray(width).reshape(-1)[0]) <= 0.26
+
+        F = rskelf(data["Ad"], x, occ=2, rank_or_tol=1e-10, opts={"symm": "n", "stop": stopfun})
+        sk, S = rskelf_partial_info(F)
+
+        self.assertGreater(len(stop_calls), 0)
+        self.assertGreater(F.Si.size, 0)
+        self.assertEqual(len(F.factors), int(data["nfactors"].ravel()[0]))
+        np.testing.assert_array_equal(sk, data["sk"].ravel().astype(np.int64) - 1)
+        self.assertEqual(S.shape, data["S"].shape)
+        self.assertEqual(S.nnz, data["S"].nnz)
+        np.testing.assert_allclose((S - data["S"]).toarray(), 0, rtol=1e-8, atol=1e-8)
+        np.testing.assert_allclose(rskelf_mv(F, data["X"]), data["Ymv"], rtol=1e-9, atol=1e-9)
+        np.testing.assert_allclose(rskelf_sv(F, data["X"]), data["Ysv"], rtol=1e-9, atol=1e-9)
+        self.assertLess(logdet_mod_error(rskelf_logdet(F), data["ld"].item()), 1e-9)
 
     def test_symmetric_mode_matches_matlab(self):
         data = run_matlab_export(

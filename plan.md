@@ -69,7 +69,7 @@ bug instead of silently skipping.
 - [x] Add complex matrix parity for each supported symmetry mode.
 - [x] Add proxy-callback parity for each supported symmetry mode where MATLAB
       FLAM supports it.
-- [ ] Add partial-factorization parity for scalar `stop` and callable/nontrivial
+- [x] Add partial-factorization parity for scalar `stop` and callable/nontrivial
       stop functions.
 - [ ] Verify compact `rskelf_mv` for `trans='n'`, `'t'`, and `'c'`.
 - [ ] Verify compact `rskelf_sv` for `trans='n'`, `'t'`, and `'c'`.
