@@ -200,14 +200,121 @@ def rskel(A, rx, cx, occ, rank_or_tol, pxyfun=None, opts=None) -> RSkelFactor:
 
 def rskel_mv(F: RSkelFactor, X, trans: str = "n") -> np.ndarray:
     trans = chktrans(trans)
-    if F.A_dense is None:
-        raise ValueError("factor does not contain matrix data")
+    if trans == "t":
+        return np.conj(rskel_mv(F, np.conj(X), "c"))
     X = np.asarray(X)
     one_dim = X.ndim == 1
     if one_dim:
         X = X[:, None]
-    Y = apply_transpose(F.A_dense, X, trans)
+    if F.symm == "n":
+        Y = _rskel_mv_n(F, X, trans)
+    else:
+        if F.A_dense is None:
+            raise ValueError("factor does not contain matrix data")
+        Y = apply_transpose(F.A_dense, X, trans)
     return Y[:, 0] if one_dim else Y
+
+
+def _rskel_mv_n(F: RSkelFactor, X: np.ndarray, trans: str) -> np.ndarray:
+    nlvl = F.nlvl
+    p = F.Q if trans == "c" else F.P
+    q = F.Q if trans == "n" else F.P
+    np_ = p.size
+    nq = q.size
+    prem = np.ones(np_, dtype=bool)
+    qrem = np.ones(nq, dtype=bool)
+    qmap = np.zeros((nq, 2), dtype=np.int64)
+    Z: list[np.ndarray] = [np.empty((0, X.shape[1]), dtype=np.result_type(X, F.A_dense))]
+    Z.extend(np.empty((0, X.shape[1]), dtype=np.result_type(X, F.A_dense)) for _ in range(nlvl - 1))
+    Ylevels: list[np.ndarray] = [np.empty((0, X.shape[1]), dtype=np.result_type(X, F.A_dense)) for _ in range(nlvl + 1)]
+
+    qmap[q, 0] = np.arange(nq)
+    pf = 0
+    Z[0] = np.array(X[q, :], dtype=np.result_type(X, F.A_dense), copy=True)
+    for lvl in range(nlvl - 1):
+        for i in range(F.lvpu[lvl], F.lvpu[lvl + 1]):
+            f = F.U[i]
+            if trans == "n":
+                qrem[f.crd] = False
+            else:
+                qrem[f.rrd] = False
+        p1 = pf
+        p2 = 1 - pf
+        pf = p2
+        q_active = qrem[q]
+        qmap[q[q_active], p2] = np.arange(np.count_nonzero(q_active))
+        Z[lvl + 1] = np.empty((np.count_nonzero(qrem), X.shape[1]), dtype=Z[0].dtype)
+        Z[lvl + 1][qmap[q[q_active], p2], :] = Z[lvl][qmap[q[q_active], p1], :]
+
+        for i in range(F.lvpu[lvl], F.lvpu[lvl + 1]):
+            f = F.U[i]
+            if trans == "n":
+                rd = qmap[f.crd, p1]
+                sk = qmap[f.csk, p2]
+                T = f.cT
+            else:
+                rd = qmap[f.rrd, p1]
+                sk = qmap[f.rsk, p2]
+                T = f.rT
+            Z[lvl + 1][sk, :] = Z[lvl + 1][sk, :] + T @ Z[lvl][rd, :]
+
+    prem[:] = False
+    pmap = np.zeros((np_, 2), dtype=np.int64)
+    qout = np.zeros(nq, dtype=np.int64)
+    pf = 0
+    Ylevels[nlvl] = np.zeros((0, X.shape[1]), dtype=Z[0].dtype)
+    for lvl in range(nlvl - 1, -1, -1):
+        r_mask = prem[p]
+        r = p[r_mask]
+        for i in range(F.lvpu[lvl], F.lvpu[lvl + 1]):
+            f = F.U[i]
+            if trans == "c":
+                prem[f.crd] = True
+            else:
+                prem[f.rrd] = True
+            if trans == "n":
+                qrem[f.crd] = True
+            else:
+                qrem[f.rrd] = True
+        p1 = pf
+        p2 = 1 - pf
+        pf = p2
+        p_active = prem[p]
+        np_active = np.count_nonzero(p_active)
+        pmap[p[p_active], p1] = np.arange(np_active)
+        qout[q[qrem[q]]] = np.arange(np.count_nonzero(qrem))
+        Ylevels[lvl] = np.zeros((np_active, X.shape[1]), dtype=Z[0].dtype)
+        if r.size:
+            Ylevels[lvl][pmap[r, p1], :] = Ylevels[lvl + 1][pmap[r, p2], :]
+
+        for i in range(F.lvpu[lvl], F.lvpu[lvl + 1]):
+            f = F.U[i]
+            if trans == "c":
+                rd = pmap[f.crd, p1]
+                sk1 = pmap[f.csk, p1]
+                sk2 = pmap[f.csk, p2]
+                T = f.cT
+            else:
+                rd = pmap[f.rrd, p1]
+                sk1 = pmap[f.rsk, p1]
+                sk2 = pmap[f.rsk, p2]
+                T = f.rT
+            Ylevels[lvl][rd, :] = T.conj().T @ Ylevels[lvl + 1][sk2, :]
+            Ylevels[lvl][sk1, :] = Ylevels[lvl + 1][sk2, :]
+
+        for i in range(F.lvpd[lvl], F.lvpd[lvl + 1]):
+            f = F.D[i]
+            if trans == "n":
+                j = pmap[f.i, p1]
+                k = qout[f.j]
+                D = f.D
+            else:
+                j = pmap[f.j, p1]
+                k = qout[f.i]
+                D = f.D.conj().T
+            Ylevels[lvl][j, :] = Ylevels[lvl][j, :] + D @ Z[lvl][k, :]
+
+    return Ylevels[0][pmap[np.arange(np_), p1], :]
 
 
 def rskel_xsp(F: RSkelFactor):
