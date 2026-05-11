@@ -48,6 +48,41 @@ def run_matlab_export(name: str, script_body: str, timeout: int = 120):
         return scipy.io.loadmat(out)
 
 
+def factor_metadata_code(factor_name: str = "F", metadata_name: str = "factor_meta") -> str:
+    """Return MATLAB code that stores common FLAM factor metadata in a struct."""
+
+    return f"""
+{metadata_name} = struct();
+if isfield({factor_name},'nlvl'), {metadata_name}.nlvl = {factor_name}.nlvl; else, {metadata_name}.nlvl = -1; end
+if isfield({factor_name},'lvp'), {metadata_name}.lvp = {factor_name}.lvp; else, {metadata_name}.lvp = []; end
+if isfield({factor_name},'lvpd'), {metadata_name}.lvpd = {factor_name}.lvpd; else, {metadata_name}.lvpd = []; end
+if isfield({factor_name},'lvpu'), {metadata_name}.lvpu = {factor_name}.lvpu; else, {metadata_name}.lvpu = []; end
+if isfield({factor_name},'lvpb'), {metadata_name}.lvpb = {factor_name}.lvpb; else, {metadata_name}.lvpb = []; end
+if isfield({factor_name},'factors'), {metadata_name}.nfactors = length({factor_name}.factors); else, {metadata_name}.nfactors = 0; end
+if isfield({factor_name},'D'), {metadata_name}.nd = length({factor_name}.D); else, {metadata_name}.nd = 0; end
+if isfield({factor_name},'U'), {metadata_name}.nu = length({factor_name}.U); else, {metadata_name}.nu = 0; end
+if isfield({factor_name},'B'), {metadata_name}.nb = length({factor_name}.B); else, {metadata_name}.nb = 0; end
+if isfield({factor_name},'Si'), {metadata_name}.nsi = length({factor_name}.Si); else, {metadata_name}.nsi = 0; end
+if isfield({factor_name},'S'), {metadata_name}.s_nnz = nnz({factor_name}.S); else, {metadata_name}.s_nnz = 0; end
+"""
+
+
+def load_factor_metadata(data, metadata_name: str = "factor_meta") -> dict[str, np.ndarray | int]:
+    """Convert a MATLAB metadata struct loaded by SciPy into a simple dict."""
+
+    raw = np.asarray(data[metadata_name]).reshape(-1)[0]
+    out = {}
+    for field in raw.dtype.names or ():
+        value = raw[field]
+        arr = np.asarray(value)
+        if arr.size == 1:
+            scalar = arr.reshape(-1)[0]
+            out[field] = int(scalar) if np.issubdtype(arr.dtype, np.integer) else scalar.item()
+        else:
+            out[field] = arr.reshape(-1)
+    return out
+
+
 def relerr(a, b) -> float:
     return float(np.linalg.norm(a - b) / max(np.linalg.norm(b), 1e-300))
 

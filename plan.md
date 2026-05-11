@@ -32,7 +32,7 @@ bug instead of silently skipping.
       into helper functions for writing scripts, running MATLAB, and loading
       `.mat` files.
 - [x] Add helpers for logdet branch comparison modulo `2*pi*i`.
-- [ ] Add helpers for exporting FLAM factor metadata needed for structural
+- [x] Add helpers for exporting FLAM factor metadata needed for structural
       comparisons: level pointers, factor counts, skeleton/redundant sizes,
       sparse correction nnz, and proxy-call evidence.
 - [ ] Preserve the existing two ChunkIE-style `rskelf` parity tests:

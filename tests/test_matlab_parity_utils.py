@@ -4,7 +4,7 @@ from pathlib import Path
 
 import numpy as np
 
-from matlab_parity_utils import logdet_mod_error, matlab_path, relerr, require_paths
+from matlab_parity_utils import factor_metadata_code, load_factor_metadata, logdet_mod_error, matlab_path, relerr, require_paths
 
 
 class MatlabParityUtilsTests(unittest.TestCase):
@@ -27,6 +27,30 @@ class MatlabParityUtilsTests(unittest.TestCase):
             missing = Path(tmp) / "missing"
             with self.assertRaisesRegex(RuntimeError, "test parity requires"):
                 require_paths(missing, label="test parity")
+
+    def test_factor_metadata_code_covers_common_factor_fields(self):
+        code = factor_metadata_code("F", "meta")
+
+        for field in ("nlvl", "lvp", "lvpd", "lvpu", "lvpb", "nfactors", "nd", "nu", "nb", "nsi", "s_nnz"):
+            self.assertIn(f"meta.{field}", code)
+
+    def test_load_factor_metadata_simplifies_matlab_struct(self):
+        meta = np.array(
+            [
+                (
+                    np.array([[2]]),
+                    np.array([[0, 3, 5]]),
+                    np.array([[7]]),
+                )
+            ],
+            dtype=[("nlvl", "O"), ("lvp", "O"), ("nfactors", "O")],
+        )
+
+        out = load_factor_metadata({"factor_meta": meta})
+
+        self.assertEqual(out["nlvl"], 2)
+        np.testing.assert_array_equal(out["lvp"], [0, 3, 5])
+        self.assertEqual(out["nfactors"], 7)
 
 
 if __name__ == "__main__":
