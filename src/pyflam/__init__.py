@@ -34,6 +34,20 @@ from .hifie import (
     hifie_spdiag,
     hifie_sv,
 )
+from .hifde import (
+    HIFDEFactor,
+    hifde2,
+    hifde2x,
+    hifde3,
+    hifde3x,
+    hifde_cholmv,
+    hifde_cholsv,
+    hifde_diag,
+    hifde_logdet,
+    hifde_mv,
+    hifde_spdiag,
+    hifde_sv,
+)
 from .ifmm import IFMMFactor, ifmm, ifmm_mv
 from .mf import (
     MFFactor,
@@ -68,6 +82,7 @@ from .rskelf import (
 __all__ = [
     "HypOctNode",
     "HypOctTree",
+    "HIFDEFactor",
     "HIFIEFactor",
     "IFMMFactor",
     "MFFactor",
@@ -77,6 +92,17 @@ __all__ = [
     "chktrans",
     "chksymm",
     "detperm",
+    "hifde2",
+    "hifde2x",
+    "hifde3",
+    "hifde3x",
+    "hifde_cholmv",
+    "hifde_cholsv",
+    "hifde_diag",
+    "hifde_logdet",
+    "hifde_mv",
+    "hifde_spdiag",
+    "hifde_sv",
     "hifie2",
     "hifie2x",
     "hifie3",
