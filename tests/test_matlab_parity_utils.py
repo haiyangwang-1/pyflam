@@ -76,8 +76,12 @@ class MatlabParityUtilsTests(unittest.TestCase):
     def test_default_flam_reference_prefers_complete_checkout(self):
         ref = default_flam_reference()
 
-        if ref.exists():
+        if "FLAM_REFERENCE" in os.environ:
+            self.assertEqual(ref, Path(os.environ["FLAM_REFERENCE"]))
+        elif all((ref / marker).exists() for marker in FLAM_MARKERS):
             self.assertTrue(all((ref / marker).exists() for marker in FLAM_MARKERS))
+        else:
+            self.assertEqual(ref, REPO_ROOT / "tests" / "references" / "flam")
 
     def test_default_chunkie_reference_prefers_repo_submodule(self):
         ref = default_chunkie_reference()
