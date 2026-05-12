@@ -1033,10 +1033,10 @@ def _chunkie_rskelf_driver_body(kernel_kind: str) -> str:
             opdims = ones([2,1,1]);
             {rhs_setup}
 
-            matfun = @(i,j) chnk.flam.kernbyindex(i,j,chnkr,wts,fkern,opdims,spmat);
+            matfun = @(i,j) chnk.flam.kernbyindex(i,j,chnkr,fkern,opdims,spmat);
             [pr,ptau,pw,pin] = chnk.flam.proxy_square_pts(64);
-            pxyfun = @(x,slf,nbr,l,ctr) chnk.flam.proxyfun(slf,nbr,l,ctr,chnkr,wts, ...
-                fkern,opdims,pr,ptau,pw,pin,true);
+            pxyfun = @(x,slf,nbr,l,ctr) chnk.flam.proxyfun(slf,nbr,l,ctr,chnkr, ...
+                fkern,opdims,pr,ptau,pw,pin,true,false);
             F = rskelf(matfun, xflam, occ, tol, pxyfun);
             Ymv = rskelf_mv(F, X);
             Ysv = rskelf_sv(F, X);

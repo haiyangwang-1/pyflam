@@ -12,12 +12,9 @@ The exact external references are pinned in `pyproject.toml` under
 - FLAM: `https://github.com/klho/FLAM.git` at
   `b928b2b1b4e0c3a00558bcdc7e3147fe83e720c4`
   (`v1.1.0-23-gb928b2b`), required clean.
-- ChunkIE: `git@github.com:WangHaiYang874/chunkie.git` at
-  `87cc6ea7828c0ef8bdc921171415b7918eb078f0`
-  (`v0.0.1-beta-121-g87cc6ea-dirty`), with tracked dirty patch
-  `tests/reference_patches/chunkie-87cc6ea7828c0ef8bdc921171415b7918eb078f0-tracked-dirty.patch`.
-  The upstream project remote used for attribution is
-  `git@github.com:fastalgorithms/chunkie.git`.
+- ChunkIE: `https://github.com/fastalgorithms/chunkie.git` at
+  `af34cc41c81114e693b515066e4d308067bf7e63`
+  (`v1.0.1-docs-232-gaf34cc4`), required clean.
 
 Recreate the current reference checkouts with:
 
@@ -25,13 +22,9 @@ Recreate the current reference checkouts with:
 git clone https://github.com/klho/FLAM.git <path-to-FLAM-checkout>
 git -C <path-to-FLAM-checkout> checkout b928b2b1b4e0c3a00558bcdc7e3147fe83e720c4
 
-git clone git@github.com:WangHaiYang874/chunkie.git <path-to-ChunkIE-checkout>
-git -C <path-to-ChunkIE-checkout> checkout 87cc6ea7828c0ef8bdc921171415b7918eb078f0
-git -C <path-to-ChunkIE-checkout> apply C:\Users\haiya\git\pyflam\tests\reference_patches\chunkie-87cc6ea7828c0ef8bdc921171415b7918eb078f0-tracked-dirty.patch
+git clone https://github.com/fastalgorithms/chunkie.git <path-to-ChunkIE-checkout>
+git -C <path-to-ChunkIE-checkout> checkout af34cc41c81114e693b515066e4d308067bf7e63
 ```
-
-The local untracked ChunkIE file `devtools/test/untitled.m` was not used by
-the PyFLAM parity tests and is not part of the pinned dependency state.
 
 ```powershell
 $env:FLAM_REFERENCE='<path-to-FLAM-checkout>'
@@ -42,9 +35,8 @@ uv run python scripts\run_tests_with_matlab_parity.py
 The harness validates that `FLAM_REFERENCE` contains the public entry-point
 files used by the parity suite, including `rskelf/rskelf.m`, `rskel/rskel.m`,
 `ifmm/ifmm.m`, `mf/mf2.m`, `hifie/hifie2.m`, and `hifde/hifde2.m`.
-It also verifies that the reference checkouts match the pinned commits and
-tracked patch. This avoids opaque MATLAB errors from incomplete or drifting
-helper checkouts.
+It also verifies that the reference checkouts match the pinned clean commits.
+This avoids opaque MATLAB errors from incomplete or drifting helper checkouts.
 
 The direct full-suite command is:
 

@@ -31,8 +31,8 @@ Full MATLAB/FLAM/ChunkIE parity requires MATLAB plus local reference checkouts.
 The exact FLAM and ChunkIE reference commits used by the parity suite are
 pinned in `pyproject.toml` under
 `[tool.pyflam.test-reference-dependencies]`. The test harness validates those
-commits before running MATLAB, including the tracked dirty ChunkIE patch needed
-for the current ChunkIE-style parity fixtures.
+clean commits before running MATLAB, including the upstream ChunkIE checkout
+used by the current ChunkIE-style parity fixtures.
 
 ```powershell
 $env:FLAM_REFERENCE='<path-to-FLAM-checkout>'

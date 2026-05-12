@@ -122,9 +122,9 @@ def _chunkie_driver(case: str) -> str:
         opdims = ones([2,1,1]);
         {rhs}
 
-        matfun = @(i,j) chnk.flam.kernbyindex(i,j,chnkr,wts,fkern,opdims,spmat,{l2scale});
+        matfun = @(i,j) chnk.flam.kernbyindex(i,j,chnkr,fkern,opdims,spmat,{l2scale});
         [pr,ptau,pw,pin] = chnk.flam.proxy_square_pts(64);
-        pxyfun = @(x,slf,nbr,l,ctr) chnk.flam.proxyfun(slf,nbr,l,ctr,chnkr,wts, ...
+        pxyfun = @(x,slf,nbr,l,ctr) chnk.flam.proxyfun(slf,nbr,l,ctr,chnkr, ...
             fkern,opdims,pr,ptau,pw,pin,true,{l2scale});
         F = rskelf(matfun, xflam, occ, tol, pxyfun);
         Ymv = rskelf_mv(F, X);

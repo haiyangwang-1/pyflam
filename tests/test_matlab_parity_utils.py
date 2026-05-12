@@ -56,8 +56,9 @@ class MatlabParityUtilsTests(unittest.TestCase):
         deps = load_reference_dependencies()
 
         self.assertEqual(deps["flam"]["commit"], "b928b2b1b4e0c3a00558bcdc7e3147fe83e720c4")
-        self.assertEqual(deps["chunkie"]["commit"], "87cc6ea7828c0ef8bdc921171415b7918eb078f0")
-        self.assertIn("tracked_dirty_patch", deps["chunkie"])
+        self.assertEqual(deps["chunkie"]["commit"], "af34cc41c81114e693b515066e4d308067bf7e63")
+        self.assertTrue(deps["chunkie"]["required_clean"])
+        self.assertNotIn("tracked_dirty_patch", deps["chunkie"])
 
     def test_require_pinned_reference_reports_non_git_checkout(self):
         with tempfile.TemporaryDirectory() as tmp:

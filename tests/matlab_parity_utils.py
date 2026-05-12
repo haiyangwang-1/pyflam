@@ -73,18 +73,6 @@ def require_pinned_reference(path: Path, key: str, label: str = "MATLAB parity")
         if status.strip():
             raise RuntimeError(f"{label} requires pinned {name} checkout {path} to be clean.")
 
-    patch_name = dep.get("tracked_dirty_patch")
-    if patch_name:
-        patch_path = REPO_ROOT / patch_name
-        require_paths(patch_path, label=f"{label} {name} pinned dirty patch")
-        expected = patch_path.read_text(encoding="utf-8")
-        actual = _git_stdout(path, "diff", "--no-ext-diff", "--", label=label, name=name)
-        if _canonical_patch(actual) != _canonical_patch(expected):
-            raise RuntimeError(
-                f"{label} requires pinned {name} tracked diff to match {patch_path}. "
-                f"Run `git -C {path} apply {patch_path}` after checking out {expected_commit}."
-            )
-
 
 def _git_stdout(path: Path, *args: str, label: str, name: str) -> str:
     result = subprocess.run(
@@ -97,13 +85,6 @@ def _git_stdout(path: Path, *args: str, label: str, name: str) -> str:
         detail = (result.stderr or result.stdout).strip()
         raise RuntimeError(f"{label} requires pinned {name} git checkout at {path}: {detail}")
     return result.stdout
-
-
-def _canonical_patch(text: str) -> str:
-    lines = text.replace("\r\n", "\n").replace("\r", "\n").split("\n")
-    while lines and lines[-1] == "":
-        lines.pop()
-    return "\n".join(line.rstrip() for line in lines)
 
 
 def default_flam_reference() -> Path:
