@@ -33,6 +33,8 @@ class GeometryTests(unittest.TestCase):
 
         self.assertEqual(C.shape, (3, 2))
         self.assertEqual(N.shape, (3, 2))
+        np.testing.assert_allclose(C, [[1.0 / 3.0, 0.0], [1.0 / 3.0, 1.0 / 3.0], [0.0, 1.0 / 3.0]])
+        np.testing.assert_allclose(N, [[0.0, 1.0], [0.0, 0.0], [1.0, 0.0]])
         np.testing.assert_allclose(A, [0.5, 0.5])
 
     def test_trisphere_subdiv_base_and_refined_sizes(self):
@@ -45,8 +47,21 @@ class GeometryTests(unittest.TestCase):
         np.testing.assert_allclose(np.linalg.norm(V, axis=0), 1.0)
 
         Vr, Fr = trisphere_subdiv(21, "f")
+        self.assertEqual(Vr.shape, (3, 42))
         self.assertEqual(Fr.shape[1], 80)
-        self.assertGreaterEqual(Vr.shape[1], 21)
+        self.assertGreaterEqual(np.min(Fr), 0)
+        self.assertLess(np.max(Fr), Vr.shape[1])
+        np.testing.assert_allclose(np.linalg.norm(Vr, axis=0), 1.0)
+        self.assertTrue(np.all([np.unique(face).size == 3 for face in Fr.T]))
+        face_vertices = Vr[:, Fr]
+        doubled_area = np.linalg.norm(
+            np.cross(
+                (face_vertices[:, 1, :] - face_vertices[:, 0, :]).T,
+                (face_vertices[:, 2, :] - face_vertices[:, 1, :]).T,
+            ),
+            axis=1,
+        )
+        self.assertGreater(np.min(doubled_area), 0.0)
 
 
 if __name__ == "__main__":

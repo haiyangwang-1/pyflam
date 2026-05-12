@@ -293,6 +293,56 @@ class DenseAlgorithmTests(unittest.TestCase):
         np.testing.assert_allclose(rskelf_diag(F), np.diag(rskelf_mv(F, eye)), rtol=1e-9, atol=1e-9)
         np.testing.assert_allclose(rskelf_diag(F, True), np.diag(rskelf_sv(F, eye)), rtol=1e-9, atol=1e-9)
         self.assertGreater(np.linalg.norm(rskelf_diag(F) - np.diag(A)), 1.0)
+        np.testing.assert_allclose(
+            rskelf_diag(F),
+            [
+                1.1979588473699159,
+                2.0298799242641863,
+                2.146141289583446,
+                2.274109789856853,
+                2.2652146591402187,
+                2.1615675910229304,
+                1.9861878757239575,
+                1.5370792446803498,
+                1.0265536610217765,
+                1.0263661021027417,
+                1.5352118379496438,
+                1.986512651864784,
+                2.160813984786163,
+                2.264512019160347,
+                2.273988541032092,
+                2.1464298688377905,
+                2.0297745002534464,
+                1.1986872511909679,
+            ],
+            rtol=1e-12,
+            atol=1e-12,
+        )
+        np.testing.assert_allclose(
+            rskelf_diag(F, True),
+            [
+                0.8811512190418801,
+                0.5019302646891723,
+                0.4861076667663816,
+                0.4544330658080907,
+                0.45751376182358,
+                0.4787870847996504,
+                0.5135880383025578,
+                0.6885057668685428,
+                0.984593398271433,
+                0.9846927472288692,
+                0.6894496584269636,
+                0.5135005104489199,
+                0.4789752882488476,
+                0.4576575174755262,
+                0.4544591207695915,
+                0.4860661715627729,
+                0.5020289206482822,
+                0.8806365813864262,
+            ],
+            rtol=1e-12,
+            atol=1e-12,
+        )
 
     def test_rskelf_diag_uses_selected_unfolding_for_complete_factors(self):
         rskelf_mod = importlib.import_module("pyflam.rskelf")

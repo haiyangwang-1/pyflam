@@ -54,9 +54,21 @@ class SparseCoreTests(unittest.TestCase):
     def test_symmetry_helpers(self):
         A = np.array([[1.0, 2.0], [0.0, 3.0]])
         np.testing.assert_allclose(spsymm(A, "s"), [[1.0, 2.0], [2.0, 3.0]])
+        Ah = np.array([[1.0, 2.0 + 1.0j], [0.0, 3.0]])
+        expected_h = np.array([[1.0, 2.0 + 1.0j], [2.0 - 1.0j, 3.0]])
+        np.testing.assert_allclose(spsymm(Ah, "h"), expected_h)
+        np.testing.assert_allclose(spsymm(sp.csr_matrix(Ah), "h").toarray(), expected_h)
+
         B = np.array([[0.0, 4.0], [0.0, 0.0]])
         C, D = spsymm2(A, B, "s")
+        np.testing.assert_allclose(C, [[1.0, 2.0], [4.0, 3.0]])
+        np.testing.assert_allclose(D, [[1.0, 4.0], [2.0, 3.0]])
         np.testing.assert_allclose(D, C.T)
+
+        Bh = np.array([[0.0, 4.0 - 2.0j], [0.0, 0.0]])
+        Ch, Dh = spsymm2(Ah, Bh, "h")
+        np.testing.assert_allclose(Ch, [[1.0, 2.0 + 1.0j], [4.0 + 2.0j, 3.0]])
+        np.testing.assert_allclose(Dh, Ch.conj().T)
 
     def test_detperm_ismemb_and_logdet_ldl(self):
         self.assertEqual(detperm([1, 0, 2]), -1)
@@ -64,6 +76,15 @@ class SparseCoreTests(unittest.TestCase):
         np.testing.assert_array_equal(ismemb([1, 3, 5], [1, 2, 5]), [True, False, True])
         D = np.diag([2.0, 3.0, 5.0])
         self.assertAlmostEqual(logdet_ldl(D), np.log(30.0))
+
+        block_D = np.array(
+            [
+                [4.0, 0.0, 0.0],
+                [0.0, 2.0, 1.0],
+                [0.0, 1.0, 3.0],
+            ]
+        )
+        np.testing.assert_allclose(logdet_ldl(block_D), np.log(20.0))
 
 
 if __name__ == "__main__":

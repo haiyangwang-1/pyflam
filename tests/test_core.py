@@ -61,7 +61,9 @@ class CoreTests(unittest.TestCase):
 
     def test_id_honors_fixed_columns_and_reports_iterations(self):
         rng = np.random.default_rng(2)
-        A = rng.standard_normal((8, 6))
+        U = rng.standard_normal((8, 3))
+        V = rng.standard_normal((3, 6))
+        A = U @ V
 
         sk, rd, T, niter = id(A, 3, fixed=[4, 1], return_niter=True)
 
@@ -69,6 +71,7 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(sk.size, 3)
         self.assertGreaterEqual(niter, 0)
         self.assertEqual(T.shape, (sk.size, rd.size))
+        np.testing.assert_allclose(A[:, rd], A[:, sk] @ T, atol=1e-10)
 
     def test_id_rrqr_refinement_bounds_interpolation(self):
         rng = np.random.default_rng(0)
@@ -82,6 +85,10 @@ class CoreTests(unittest.TestCase):
         self.assertGreater(niter, 0)
         self.assertLessEqual(np.max(np.abs(T)), 1.01 + 1e-12)
         self.assertEqual(T.shape, (sk.size, rd.size))
+        residual = np.linalg.norm(A[:, rd] - A[:, sk] @ T)
+        singular_values = np.linalg.svd(A, compute_uv=False)
+        best_rank4_residual = np.linalg.norm(singular_values[4:])
+        self.assertLessEqual(residual, 1.5 * best_rank4_residual)
 
     def test_id_rank_cap_and_tolerance_modes(self):
         A = np.diag([10.0, 1.0, 1e-4, 0.0])
@@ -89,6 +96,9 @@ class CoreTests(unittest.TestCase):
         sk, rd, T = id(A, 2)
         self.assertEqual(sk.size, 2)
         self.assertEqual(T.shape, (2, 2))
+        capped_residual = np.linalg.norm(A[:, rd] - A[:, sk] @ T)
+        best_rank2_residual = np.linalg.norm(np.linalg.svd(A, compute_uv=False)[2:])
+        np.testing.assert_allclose(capped_residual, best_rank2_residual, rtol=1e-12, atol=1e-12)
 
         sk, rd, T = id(A, 1e-3)
         self.assertEqual(sk.size, 2)
