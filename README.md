@@ -1,7 +1,7 @@
 PyFLAM
 ======
 
-PyFLAM is Haiya's NumPy/SciPy re-implementation of the public API from Ken
+PyFLAM is Haiyang's NumPy/SciPy re-implementation of the public API from Ken
 Ho's [FLAM](https://github.com/klho/FLAM), centered on `hypoct`, `id`,
 `rskel`, `rskelf`, `ifmm`, `mf`, `hifie`, `hifde`, and their
 apply/solve/diagonal helpers.
