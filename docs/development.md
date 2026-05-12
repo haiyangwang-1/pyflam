@@ -50,6 +50,11 @@ before it launches MATLAB.
 - `matlab-parity`: one Python version, MATLAB setup, pinned FLAM clone, ChunkIE
   submodule checkout, full parity runner.
 
+The hosted MATLAB parity job sets `MW_BATCH_LICENSING_ONLINE=true` before
+launching the Python harness. The harness starts many `matlab -batch`
+subprocesses directly, so it must opt in to the same online batch licensing
+mode used by MathWorks' `run-command` action on public GitHub-hosted runners.
+
 Do not run multiple MATLAB parity jobs in parallel from the same machine unless
 you know the local MATLAB license and startup behavior are stable under that
 load.

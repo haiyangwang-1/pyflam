@@ -89,6 +89,7 @@ jobs:
         env:
           FLAM_REFERENCE: ${{ github.workspace }}/tests/references/flam
           CHUNKIE_REFERENCE: ${{ github.workspace }}/tests/references/chunkie
+          MW_BATCH_LICENSING_ONLINE: "true"
         run: uv run python scripts/run_tests_with_matlab_parity.py
 
       - name: Prune uv cache
