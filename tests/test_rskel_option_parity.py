@@ -25,10 +25,10 @@ def _rect_proxy_callbacks(rx, cx):
         calls["matrix"] += 1
         return _rect_kernel(rx[i], cx[j])
 
-    def pxyfun(rc, rx_arg, cx_arg, slf, nbr, l, ctr):
+    def pxyfun(rc, rx_arg, cx_arg, slf, nbr, box_size, ctr):
         slf = np.asarray(slf, dtype=np.int64).reshape(-1)
         nbr = np.asarray(nbr, dtype=np.int64).reshape(-1)
-        width = float(np.asarray(l).reshape(-1)[0])
+        width = float(np.asarray(box_size).reshape(-1)[0])
         center = float(np.asarray(ctr).reshape(-1)[0])
         proxy = center + width * np.array([-1.75, -1.25, 1.25, 1.75])
         if rc == "r":
@@ -484,11 +484,11 @@ class RSkelOptionParityTests(unittest.TestCase):
             j = np.asarray(j, dtype=np.int64).reshape(-1)
             return _line_kernel(x[i], x[j])
 
-        def pxyfun(rc, rx, cx, slf, nbr, l, ctr):
+        def pxyfun(rc, rx, cx, slf, nbr, box_size, ctr):
             calls["proxy"] += 1
             slf = np.asarray(slf, dtype=np.int64).reshape(-1)
             nbr = np.asarray(nbr, dtype=np.int64).reshape(-1)
-            width = float(np.asarray(l).reshape(-1)[0])
+            width = float(np.asarray(box_size).reshape(-1)[0])
             center = float(np.asarray(ctr).reshape(-1)[0])
             pxy = proxy * width + center
             if rc == "r":

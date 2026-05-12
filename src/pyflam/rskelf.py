@@ -56,12 +56,12 @@ class RSkelFFactor(StructMixin):
 
 def _stop_fun(stop):
     if stop is None:
-        return lambda lvl, l: False
+        return lambda level, box_size: False
     if callable(stop):
         return stop
     if np.isinf(stop):
-        return lambda lvl, l: False
-    return lambda lvl, l: lvl >= stop
+        return lambda level, box_size: False
+    return lambda level, box_size: level >= stop
 
 
 def _concat_indices(parts: list[np.ndarray]) -> np.ndarray:
@@ -84,6 +84,13 @@ def _lu_vector(A: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
 
 
 def rskelf(A, x, occ, rank_or_tol, pxyfun=None, opts=None) -> RSkelFFactor:
+    """Build a recursive skeletonization factorization.
+
+    ``A`` may be a dense/sparse matrix or a callback receiving 0-based row and
+    column index arrays. Callback factors keep only compact factor blocks rather
+    than an eagerly materialized dense matrix.
+    """
+
     defaults = {
         "lvlmax": np.inf,
         "ext": None,
@@ -109,7 +116,7 @@ def rskelf(A, x, occ, rank_or_tol, pxyfun=None, opts=None) -> RSkelFFactor:
     stop = _stop_fun(o["stop"])
 
     for lvl in range(tree.nlvl - 1, -1, -1):
-        node_size = tree.l[:, lvl]
+        node_size = tree.widths[:, lvl]
         if stop(tree.nlvl - 1 - lvl, node_size):
             break
 
@@ -258,6 +265,8 @@ def rskelf(A, x, occ, rank_or_tol, pxyfun=None, opts=None) -> RSkelFFactor:
 
 
 def rskelf_mv(F: RSkelFFactor, X, trans: str = "n") -> np.ndarray:
+    """Apply an ``rskelf`` factor or its transpose/adjoint to ``X``."""
+
     trans = chktrans(trans)
     if trans == "t":
         return np.conj(rskelf_mv(F, np.conj(X), "c"))
@@ -282,6 +291,8 @@ def rskelf_mv(F: RSkelFFactor, X, trans: str = "n") -> np.ndarray:
 
 
 def rskelf_sv(F: RSkelFFactor, X, trans: str = "n") -> np.ndarray:
+    """Solve with an ``rskelf`` factor or its transpose/adjoint."""
+
     trans = chktrans(trans)
     if trans == "t":
         return np.conj(rskelf_sv(F, np.conj(X), "c"))
@@ -318,6 +329,8 @@ def rskelf_sv(F: RSkelFFactor, X, trans: str = "n") -> np.ndarray:
 
 
 def rskelf_logdet(F: RSkelFFactor):
+    """Return the log determinant represented by an ``rskelf`` factor."""
+
     ld = 0.0 + 0.0j
     for f in F.factors:
         if F.symm == "p":
@@ -1032,12 +1045,16 @@ def _rskelf_cholsv_p(F: RSkelFFactor, X: np.ndarray, trans: str) -> np.ndarray:
 
 
 def rskelf_partial_info(F: RSkelFFactor):
+    """Return active indices and Schur complement data for a partial factor."""
+
     if F.Si is None:
         return np.array([], dtype=np.int64), sp.csr_matrix((0, 0))
     return F.Si.copy(), F.S.copy() if sp.issparse(F.S) else np.array(F.S, copy=True)
 
 
 def rskelf_partial_mv(F: RSkelFFactor, X, mvfun=None, trans: str = "n") -> np.ndarray:
+    """Apply a partial ``rskelf`` factor plus an optional active-block apply."""
+
     trans = chktrans(trans)
     if trans == "t":
         return np.conj(rskelf_partial_mv(F, np.conj(X), mvfun, "c"))
@@ -1054,6 +1071,8 @@ def rskelf_partial_mv(F: RSkelFFactor, X, mvfun=None, trans: str = "n") -> np.nd
 
 
 def rskelf_partial_sv(F: RSkelFFactor, X, svfun=None, trans: str = "n") -> np.ndarray:
+    """Solve with a partial ``rskelf`` factor plus an optional active-block solve."""
+
     trans = chktrans(trans)
     if trans == "t":
         return np.conj(rskelf_partial_sv(F, np.conj(X), svfun, "c"))

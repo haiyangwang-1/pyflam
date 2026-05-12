@@ -53,7 +53,7 @@ class HypOctNode(StructMixin):
 class HypOctTree(StructMixin):
     nlvl: int
     lvp: np.ndarray
-    l: np.ndarray
+    widths: np.ndarray
     nodes: list[HypOctNode]
 
 
@@ -76,6 +76,8 @@ def _normalise_opts(opts: dict[str, Any] | None, defaults: dict[str, Any]) -> di
 
 
 def chksymm(symm: str | None) -> str:
+    """Normalize a FLAM symmetry option to ``n``, ``s``, ``h``, or ``p``."""
+
     if symm is None or symm == "":
         return "n"
     val = str(symm).lower()[0]
@@ -85,6 +87,8 @@ def chksymm(symm: str | None) -> str:
 
 
 def chktrans(trans: str | None) -> str:
+    """Normalize a transpose option to ``n``, ``t``, or ``c``."""
+
     if trans is None or trans == "":
         return "n"
     val = str(trans).lower()[0]
@@ -114,20 +118,20 @@ def hypoct(x: ArrayLike, occ: int, lvlmax: float = np.inf, ext: ArrayLike | None
         if ext_arr.shape != (d, 2):
             raise ValueError("ext must have shape (d, 2)")
 
-    l = ext_arr[:, 1] - ext_arr[:, 0]
+    root_widths = ext_arr[:, 1] - ext_arr[:, 0]
     ctr = 0.5 * (ext_arr[:, 0] + ext_arr[:, 1])
     nodes: list[HypOctNode] = [HypOctNode(ctr=ctr, xi=np.arange(n, dtype=np.int64))]
     lvp = [0, 1]
-    l_by_level = [l.copy()]
+    widths_by_level = [root_widths.copy()]
     nlvl = 1
 
     while nlvl < lvlmax:
         nbox_before = len(nodes)
-        current_l = l_by_level[-1].copy()
-        max_l = np.max(current_l) if current_l.size else 0
-        ldiv = current_l >= max_l / np.sqrt(2) if max_l > 0 else np.zeros(d, dtype=bool)
-        next_l = current_l.copy()
-        next_l[ldiv] *= 0.5
+        current_widths = widths_by_level[-1].copy()
+        max_width = np.max(current_widths) if current_widths.size else 0
+        split_dims = current_widths >= max_width / np.sqrt(2) if max_width > 0 else np.zeros(d, dtype=bool)
+        next_widths = current_widths.copy()
+        next_widths[split_dims] *= 0.5
 
         for prnt in range(lvp[nlvl - 1], lvp[nlvl]):
             xi = nodes[prnt].xi
@@ -136,9 +140,9 @@ def hypoct(x: ArrayLike, occ: int, lvlmax: float = np.inf, ext: ArrayLike | None
             if _unique_point_count(x[:, xi]) <= 1:
                 continue
             pctr = nodes[prnt].ctr
-            side = (ldiv[:, None] & (x[:, xi] > pctr[:, None])).astype(np.int64)
+            side = (split_dims[:, None] & (x[:, xi] > pctr[:, None])).astype(np.int64)
             for bit, mask in _child_partitions(side):
-                child_ctr = pctr + next_l * ldiv * (bit - 0.5)
+                child_ctr = pctr + next_widths * split_dims * (bit - 0.5)
                 child_xi = xi[mask]
                 child_idx = len(nodes)
                 nodes.append(HypOctNode(ctr=child_ctr, xi=child_xi, prnt=prnt))
@@ -149,14 +153,14 @@ def hypoct(x: ArrayLike, occ: int, lvlmax: float = np.inf, ext: ArrayLike | None
             break
         nlvl += 1
         lvp.append(len(nodes))
-        l_by_level.append(next_l)
+        widths_by_level.append(next_widths)
 
     lvp_arr = np.asarray(lvp, dtype=np.int64)
-    l_arr = np.column_stack(l_by_level) if l_by_level else np.empty((d, 0))
-    tree = HypOctTree(nlvl=nlvl, lvp=lvp_arr, l=l_arr, nodes=nodes)
+    widths_arr = np.column_stack(widths_by_level) if widths_by_level else np.empty((d, 0))
+    tree = HypOctTree(nlvl=nlvl, lvp=lvp_arr, widths=widths_arr, nodes=nodes)
 
     for lvl in range(1, nlvl):
-        level_l = tree.l[:, lvl]
+        level_widths = tree.widths[:, lvl]
         for i in range(tree.lvp[lvl], tree.lvp[lvl + 1]):
             node = tree.nodes[i]
             if node.prnt is None:
@@ -168,8 +172,11 @@ def hypoct(x: ArrayLike, occ: int, lvlmax: float = np.inf, ext: ArrayLike | None
                 other = tree.nodes[j]
                 if other.xi.size:
                     jlvl = int(np.searchsorted(tree.lvp, j, side="right") - 1)
-                    jl = tree.l[:, jlvl]
-                    dist = np.round((np.abs(node.ctr - other.ctr) - 0.5 * (level_l + jl)) / np.maximum(level_l, 1e-300))
+                    other_widths = tree.widths[:, jlvl]
+                    dist = np.round(
+                        (np.abs(node.ctr - other.ctr) - 0.5 * (level_widths + other_widths))
+                        / np.maximum(level_widths, 1e-300)
+                    )
                     if np.max(dist) <= 0:
                         node.nbor.append(j)
 
@@ -178,7 +185,7 @@ def hypoct(x: ArrayLike, occ: int, lvlmax: float = np.inf, ext: ArrayLike | None
                 candidates.extend(tree.nodes[j].chld)
             if candidates:
                 ctrs = np.column_stack([tree.nodes[j].ctr for j in candidates])
-                dist = np.round(np.abs(node.ctr[:, None] - ctrs) / np.maximum(level_l[:, None], 1e-300))
+                dist = np.round(np.abs(node.ctr[:, None] - ctrs) / np.maximum(level_widths[:, None], 1e-300))
                 node.nbor.extend([candidates[k] for k in np.flatnonzero(np.max(dist, axis=0) <= 1)])
 
     return tree
@@ -500,18 +507,15 @@ def _givens(a, b) -> np.ndarray:
     if b == 0:
         c = 1.0
         s = 0.0
-        r = a
     elif a == 0:
         c = 0.0
         s = np.conj(b) / abs(b)
-        r = abs(b)
     else:
         scale = abs(a) + abs(b)
         norm = scale * np.sqrt((abs(a) / scale) ** 2 + (abs(b) / scale) ** 2)
         alpha = a / abs(a)
         c = abs(a) / norm
         s = alpha * np.conj(b) / norm
-        r = alpha * norm
     return np.array([[c, s], [-np.conj(s), c]], dtype=np.result_type(a, b, complex)) if np.iscomplexobj([a, b]) else np.array([[c, s], [-s, c]])
 
 
@@ -549,98 +553,113 @@ def snorm(
     return s_old, niter_max
 
 
-def spget(A: ArrayLike, I: ArrayLike, J: ArrayLike) -> np.ndarray:
-    """Return ``full(A[I, J])`` for sparse or dense matrices."""
+def spget(A: ArrayLike, rows: ArrayLike, cols: ArrayLike) -> np.ndarray:
+    """Return ``full(A[rows, cols])`` for sparse or dense matrices."""
 
-    I = np.asarray(I, dtype=np.int64)
-    J = np.asarray(J, dtype=np.int64)
+    rows = np.asarray(rows, dtype=np.int64)
+    cols = np.asarray(cols, dtype=np.int64)
     if sp.issparse(A):
-        return np.asarray(A[:, J][I, :].toarray())
-    return np.asarray(A)[np.ix_(I, J)]
+        return np.asarray(A[:, cols][rows, :].toarray())
+    return np.asarray(A)[np.ix_(rows, cols)]
 
 
-def spgetv(A: list[Any], I: ArrayLike, J: ArrayLike) -> np.ndarray:
-    """Sparse column-list access equivalent to ``M[I, J]``."""
+def spgetv(A: list[Any], rows: ArrayLike, cols: ArrayLike) -> np.ndarray:
+    """Sparse column-list access equivalent to ``M[rows, cols]``."""
 
-    I = np.asarray(I, dtype=np.int64)
-    J = np.asarray(J, dtype=np.int64)
-    if not J.size:
-        return np.zeros((I.size, 0))
-    cols = []
-    for j in J:
-        col = A[int(j)]
+    rows = np.asarray(rows, dtype=np.int64)
+    col_indices = np.asarray(cols, dtype=np.int64)
+    if not col_indices.size:
+        return np.zeros((rows.size, 0))
+    out_cols = []
+    for col_idx in col_indices:
+        col = A[int(col_idx)]
         if sp.issparse(col):
-            cols.append(np.asarray(col[I].toarray()).reshape(-1))
+            out_cols.append(np.asarray(col[rows].toarray()).reshape(-1))
         else:
-            cols.append(np.asarray(col)[I].reshape(-1))
-    return np.column_stack(cols)
+            out_cols.append(np.asarray(col)[rows].reshape(-1))
+    return np.column_stack(out_cols)
 
 
-def spaddv(A: list[Any], I: ArrayLike, J: ArrayLike, V: ArrayLike) -> list[Any]:
-    """Add ``V`` into sparse column-list storage at rows ``I`` and columns ``J``."""
+def spaddv(A: list[Any], rows: ArrayLike, cols: ArrayLike, values: ArrayLike) -> list[Any]:
+    """Add ``values`` into sparse column-list storage at selected rows and columns."""
 
-    I = np.asarray(I, dtype=np.int64)
-    J = np.asarray(J, dtype=np.int64)
-    V = np.asarray(V)
-    if V.shape != (I.size, J.size):
-        raise ValueError("V must have shape (len(I), len(J))")
-    for col_pos, j in enumerate(J):
-        jj = int(j)
-        col = A[jj].tolil(copy=True) if sp.issparse(A[jj]) else sp.lil_matrix(np.asarray(A[jj]).reshape(-1, 1))
-        for row_pos, i in enumerate(I):
-            col[int(i), 0] = col[int(i), 0] + V[row_pos, col_pos]
-        A[jj] = col.tocsc()
+    rows = np.asarray(rows, dtype=np.int64)
+    cols = np.asarray(cols, dtype=np.int64)
+    values = np.asarray(values)
+    if values.shape != (rows.size, cols.size):
+        raise ValueError("values must have shape (len(rows), len(cols))")
+    for col_pos, col_idx in enumerate(cols):
+        column = A[int(col_idx)]
+        column = column.tolil(copy=True) if sp.issparse(column) else sp.lil_matrix(np.asarray(column).reshape(-1, 1))
+        for row_pos, row_idx in enumerate(rows):
+            column[int(row_idx), 0] = column[int(row_idx), 0] + values[row_pos, col_pos]
+        A[int(col_idx)] = column.tocsc()
     return A
 
 
-def sppush2(I: ArrayLike, J: ArrayLike, nz: int, i: ArrayLike, j: ArrayLike) -> tuple[np.ndarray, np.ndarray, int]:
-    I = np.asarray(I)
-    J = np.asarray(J)
-    i = np.asarray(i).reshape(-1)
-    j = np.asarray(j).reshape(-1)
-    if I.size != J.size or i.size != j.size:
-        raise ValueError("arrays I and J must have the same size, as must i and j")
-    nznew = nz + i.size
-    if I.size < nznew:
-        new_size = max(1, I.size)
+def sppush2(
+    row_buffer: ArrayLike,
+    col_buffer: ArrayLike,
+    nz: int,
+    rows: ArrayLike,
+    cols: ArrayLike,
+) -> tuple[np.ndarray, np.ndarray, int]:
+    """Append row/column index pairs to expandable sparse COO buffers."""
+
+    row_buffer = np.asarray(row_buffer)
+    col_buffer = np.asarray(col_buffer)
+    rows = np.asarray(rows).reshape(-1)
+    cols = np.asarray(cols).reshape(-1)
+    if row_buffer.size != col_buffer.size or rows.size != cols.size:
+        raise ValueError("row and column buffers must have compatible sizes")
+    nznew = nz + rows.size
+    if row_buffer.size < nznew:
+        new_size = max(1, row_buffer.size)
         while new_size < nznew:
             new_size *= 2
-        I = np.pad(I, (0, new_size - I.size))
-        J = np.pad(J, (0, new_size - J.size))
-    I[nz:nznew] = i
-    J[nz:nznew] = j
-    return I, J, nznew
+        row_buffer = np.pad(row_buffer, (0, new_size - row_buffer.size))
+        col_buffer = np.pad(col_buffer, (0, new_size - col_buffer.size))
+    row_buffer[nz:nznew] = rows
+    col_buffer[nz:nznew] = cols
+    return row_buffer, col_buffer, nznew
 
 
 def sppush3(
-    I: ArrayLike,
-    J: ArrayLike,
-    V: ArrayLike,
+    row_buffer: ArrayLike,
+    col_buffer: ArrayLike,
+    value_buffer: ArrayLike,
     nz: int,
-    i: ArrayLike,
-    j: ArrayLike,
-    v: ArrayLike,
+    rows: ArrayLike,
+    cols: ArrayLike,
+    values: ArrayLike,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, int]:
-    I = np.asarray(I)
-    J = np.asarray(J)
-    V = np.asarray(V)
-    i = np.asarray(i).reshape(-1)
-    j = np.asarray(j).reshape(-1)
-    v = np.asarray(v).reshape(-1)
-    if I.size != J.size or I.size != V.size or i.size != j.size or i.size != v.size:
-        raise ValueError("arrays I, J, and V must have compatible sizes")
-    nznew = nz + i.size
-    if I.size < nznew:
-        new_size = max(1, I.size)
+    """Append row/column/value triples to expandable sparse COO buffers."""
+
+    row_buffer = np.asarray(row_buffer)
+    col_buffer = np.asarray(col_buffer)
+    value_buffer = np.asarray(value_buffer)
+    rows = np.asarray(rows).reshape(-1)
+    cols = np.asarray(cols).reshape(-1)
+    values = np.asarray(values).reshape(-1)
+    if (
+        row_buffer.size != col_buffer.size
+        or row_buffer.size != value_buffer.size
+        or rows.size != cols.size
+        or rows.size != values.size
+    ):
+        raise ValueError("row, column, and value buffers must have compatible sizes")
+    nznew = nz + rows.size
+    if row_buffer.size < nznew:
+        new_size = max(1, row_buffer.size)
         while new_size < nznew:
             new_size *= 2
-        I = np.pad(I, (0, new_size - I.size))
-        J = np.pad(J, (0, new_size - J.size))
-        V = np.pad(V, (0, new_size - V.size))
-    I[nz:nznew] = i
-    J[nz:nznew] = j
-    V[nz:nznew] = v
-    return I, J, V, nznew
+        row_buffer = np.pad(row_buffer, (0, new_size - row_buffer.size))
+        col_buffer = np.pad(col_buffer, (0, new_size - col_buffer.size))
+        value_buffer = np.pad(value_buffer, (0, new_size - value_buffer.size))
+    row_buffer[nz:nznew] = rows
+    col_buffer[nz:nznew] = cols
+    value_buffer[nz:nznew] = values
+    return row_buffer, col_buffer, value_buffer, nznew
 
 
 def spsymm(A: ArrayLike, symm: str) -> Any:

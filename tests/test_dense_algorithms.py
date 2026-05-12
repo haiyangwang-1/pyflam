@@ -144,7 +144,7 @@ class DenseAlgorithmTests(unittest.TestCase):
         Z = rng.standard_normal((20, 2)) + 1j * rng.standard_normal((20, 2))
         calls = []
 
-        def pxyfun(rc, rxp, cxp, slf, nbr, l, ctr):
+        def pxyfun(rc, rxp, cxp, slf, nbr, box_size, ctr):
             calls.append(rc)
             if rc == "r":
                 far = np.setdiff1d(np.arange(cxp.shape[1]), nbr, assume_unique=False)

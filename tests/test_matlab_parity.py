@@ -1,7 +1,5 @@
-import os
 import textwrap
 import unittest
-from pathlib import Path
 
 import numpy as np
 import scipy.sparse as sp
@@ -9,6 +7,7 @@ import scipy.special
 
 from matlab_parity_utils import (
     MATLAB,
+    default_chunkie_reference,
     default_flam_reference,
     logdet_mod_error as _logdet_mod_error,
     matlab_path,
@@ -70,7 +69,7 @@ from pyflam import (
 
 
 FLAM_REF = default_flam_reference()
-CHUNKIE_REF = Path(os.environ.get("CHUNKIE_REFERENCE", Path.home() / "git" / "chunkie"))
+CHUNKIE_REF = default_chunkie_reference()
 
 
 def _run_flam_export(name: str, body: str, timeout: int = 120):
@@ -120,7 +119,7 @@ class MatlabParityTests(unittest.TestCase):
         np.testing.assert_array_equal(hypoct_perm(tree), data["p"].ravel().astype(np.int64) - 1)
         self.assertEqual(tree.nlvl, int(data["nlvl"].ravel()[0]))
         np.testing.assert_array_equal(tree.lvp, data["lvp"].ravel().astype(np.int64))
-        np.testing.assert_allclose(tree.l, data["l"])
+        np.testing.assert_allclose(tree.widths, data["l"])
         np.testing.assert_array_equal([node.xi.size for node in tree.nodes], data["leaf_counts"].ravel())
         np.testing.assert_array_equal([len(node.nbor) for node in tree.nodes], data["nbor_counts"].ravel())
         np.testing.assert_array_equal([len(node.chld) for node in tree.nodes], data["chld_counts"].ravel())
@@ -326,15 +325,15 @@ class MatlabParityTests(unittest.TestCase):
             out[same] += noise**2
             return out
 
-        def pxyfun(all_x, slf, nbr, l, ctr):
+        def pxyfun(all_x, slf, nbr, box_size, ctr):
             slf = np.asarray(slf, dtype=np.int64)
             nbr = np.asarray(nbr, dtype=np.int64)
-            l = np.asarray(l).reshape(-1)
+            box_size = np.asarray(box_size).reshape(-1)
             ctr = np.asarray(ctr).reshape(-1)
-            pxy = proxy + (shift * l[:, None])[:, :, None] + ctr[:, None, None]
+            pxy = proxy + (shift * box_size[:, None])[:, :, None] + ctr[:, None, None]
             pxy = pxy.reshape((x.shape[0], -1), order="F")
             if nbr.size:
-                keep = np.max(np.abs((all_x[:, nbr] - ctr[:, None]) / l[:, None]), axis=0) < 1.5
+                keep = np.max(np.abs((all_x[:, nbr] - ctr[:, None]) / box_size[:, None]), axis=0) < 1.5
                 nbr = nbr[keep]
             return cov_kernel(pxy, all_x[:, slf]), nbr
 
@@ -1074,11 +1073,11 @@ class _ChunkIERSkelfOperator:
         ptau = np.asarray(ptau)
         pw = np.asarray(pw).reshape(-1)
 
-        def pxyfun(x, slf, nbr, l, ctr):
+        def pxyfun(x, slf, nbr, box_size, ctr):
             self.proxy_calls += 1
             slf = np.asarray(slf, dtype=np.int64)
             nbr = np.asarray(nbr, dtype=np.int64)
-            lmax = float(np.max(l))
+            lmax = float(np.max(box_size))
             ctr = np.asarray(ctr).reshape(2, 1)
             pxy = pr * lmax + ctr
             pweights = lmax * pw

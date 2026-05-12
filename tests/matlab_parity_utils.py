@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import shutil
 import subprocess
 import tempfile
 import time
@@ -14,7 +15,12 @@ import scipy.io
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-MATLAB = Path(os.environ.get("MATLAB", r"C:\Program Files\MATLAB\R2026a\bin\matlab.exe"))
+MATLAB = Path(
+    os.environ.get(
+        "MATLAB",
+        shutil.which("matlab") or r"C:\Program Files\MATLAB\R2026a\bin\matlab.exe",
+    )
+)
 FLAM_MARKERS = (
     Path("rskelf") / "rskelf.m",
     Path("rskel") / "rskel.m",
@@ -95,12 +101,36 @@ def default_flam_reference() -> Path:
         return Path(env_ref)
 
     candidates = [
+        REPO_ROOT / "tests" / "references" / "flam",
         Path(tempfile.gettempdir()) / "flam-reference",
         Path(tempfile.gettempdir()) / "FLAM-ref",
         Path.home() / "git" / "FLAM",
     ]
     for path in candidates:
         if all((path / marker).exists() for marker in FLAM_MARKERS):
+            return path
+    return candidates[0]
+
+
+def default_chunkie_reference() -> Path:
+    """Return the preferred ChunkIE checkout for parity tests."""
+
+    env_ref = os.environ.get("CHUNKIE_REFERENCE")
+    if env_ref:
+        return Path(env_ref)
+
+    repo_ref = REPO_ROOT / "tests" / "references" / "chunkie"
+    if repo_ref.exists():
+        return repo_ref
+
+    candidates = [
+        repo_ref,
+        Path(tempfile.gettempdir()) / "chunkie-reference",
+        Path(tempfile.gettempdir()) / "ChunkIE-ref",
+        Path.home() / "git" / "chunkie",
+    ]
+    for path in candidates:
+        if path.exists():
             return path
     return candidates[0]
 

@@ -1,13 +1,12 @@
-import os
 import textwrap
 import unittest
-from pathlib import Path
 
 import numpy as np
 import scipy.special
 
 from matlab_parity_utils import (
     MATLAB,
+    default_chunkie_reference,
     default_flam_reference,
     logdet_mod_error,
     matlab_path,
@@ -21,7 +20,7 @@ from pyflam import rskelf, rskelf_logdet, rskelf_mv, rskelf_sv
 
 
 FLAM_REF = default_flam_reference()
-CHUNKIE_REF = Path(os.environ.get("CHUNKIE_REFERENCE", Path.home() / "git" / "chunkie"))
+CHUNKIE_REF = default_chunkie_reference()
 
 
 class ChunkIEMoreRSkelfParityTests(unittest.TestCase):
@@ -169,11 +168,11 @@ class _ChunkIEOperator:
         ptau = np.asarray(ptau)
         pw = np.asarray(pw).reshape(-1)
 
-        def pxyfun(x, slf, nbr, l, ctr):
+        def pxyfun(x, slf, nbr, box_size, ctr):
             self.proxy_calls += 1
             slf = np.asarray(slf, dtype=np.int64)
             nbr = np.asarray(nbr, dtype=np.int64)
-            lmax = float(np.max(l))
+            lmax = float(np.max(box_size))
             ctr = np.asarray(ctr).reshape(2, 1)
             pxy = pr * lmax + ctr
             pweights = lmax * pw

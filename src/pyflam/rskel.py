@@ -86,7 +86,7 @@ def rskel(A, rx, cx, occ, rank_or_tol, pxyfun=None, opts=None) -> RSkelFactor:
     crem = np.ones(N, dtype=bool)
 
     for lvl in range(tree.nlvl - 1, -1, -1):
-        node_size = tree.l[:, lvl]
+        node_size = tree.widths[:, lvl]
         for node_idx in range(tree.lvp[lvl], tree.lvp[lvl + 1]):
             node = tree.nodes[node_idx]
             child_r = [tree.nodes[ch].rxi for ch in node.chld if getattr(tree.nodes[ch], "rxi").size]
@@ -200,6 +200,8 @@ def rskel(A, rx, cx, occ, rank_or_tol, pxyfun=None, opts=None) -> RSkelFactor:
 
 
 def rskel_mv(F: RSkelFactor, X, trans: str = "n") -> np.ndarray:
+    """Apply an ``rskel`` compression factor or its transpose/adjoint."""
+
     trans = chktrans(trans)
     if trans == "t":
         return np.conj(rskel_mv(F, np.conj(X), "c"))
@@ -450,19 +452,19 @@ def rskel_xsp(F: RSkelFactor):
         N += rk
 
     if rows:
-        I = np.concatenate(rows)
-        J = np.concatenate(cols)
-        V = np.concatenate(vals)
+        row_idx = np.concatenate(rows)
+        col_idx = np.concatenate(cols)
+        values = np.concatenate(vals)
     else:
-        I = np.array([], dtype=np.int64)
-        J = np.array([], dtype=np.int64)
-        V = np.array([], dtype=float)
+        row_idx = np.array([], dtype=np.int64)
+        col_idx = np.array([], dtype=np.int64)
+        values = np.array([], dtype=float)
     if F.symm != "n":
-        mask = I >= J
-        I = I[mask]
-        J = J[mask]
-        V = V[mask]
-    return sp.csr_matrix((V, (I, J)), shape=(M, N)), p.copy(), q.copy()
+        mask = row_idx >= col_idx
+        row_idx = row_idx[mask]
+        col_idx = col_idx[mask]
+        values = values[mask]
+    return sp.csr_matrix((values, (row_idx, col_idx)), shape=(M, N)), p.copy(), q.copy()
 
 
 def _push_sparse_block(

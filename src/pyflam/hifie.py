@@ -151,32 +151,46 @@ def hifie3x(A, x, occ, rank_or_tol, pxyfun=None, opts: dict[str, Any] | None = N
 
 
 def hifie_mv(F: HIFIEFactor, X, trans: str = "n"):
+    """Apply a HIFIE factor or its transpose/adjoint."""
+
     return rskelf_mv(F.backend, X, trans)
 
 
 def hifie_sv(F: HIFIEFactor, X, trans: str = "n"):
+    """Solve with a HIFIE factor or its transpose/adjoint."""
+
     return rskelf_sv(F.backend, X, trans)
 
 
 def hifie_logdet(F: HIFIEFactor):
+    """Return the log determinant represented by a HIFIE factor."""
+
     return rskelf_logdet(F.backend)
 
 
 def hifie_cholmv(F: HIFIEFactor, X, trans: str = "n"):
+    """Apply the generalized Cholesky factor for positive-definite HIFIE."""
+
     return rskelf_cholmv(F.backend, X, trans)
 
 
 def hifie_cholsv(F: HIFIEFactor, X, trans: str = "n"):
+    """Apply the inverse generalized Cholesky factor for positive-definite HIFIE."""
+
     return rskelf_cholsv(F.backend, X, trans)
 
 
 def hifie_diag(F: HIFIEFactor, dinv: bool | int = False, opts: dict[str, Any] | None = None):
+    """Extract ``diag(F)`` or ``diag(inv(F))`` from a HIFIE factor."""
+
     if F.backend.Si is not None and F.backend.Si.size == 0:
         return _rskelf_diag_unfold(F.backend, dinv, external=True)
     return rskelf_diag(F.backend, dinv, opts)
 
 
 def hifie_spdiag(F: HIFIEFactor, dinv: bool | int = False):
+    """Extract a HIFIE diagonal through the sparse selected-inversion path."""
+
     if F.backend.Si is not None and F.backend.Si.size == 0:
         return _rskelf_spdiag_sparse_from_info(F.backend, dinv, *_hifie_spdiag_info(F.backend))
     return hifie_diag(F, dinv)
@@ -224,7 +238,7 @@ def _hifie_base(A, x, occ, rank_or_tol, idfun, pxyfun, opts: dict[str, Any], dim
     M = sp.csc_matrix((N, N), dtype=_matrix_dtype(A, N))
 
     for lvl in range(tree.nlvl - 1, -1, -1):
-        level_l = tree.l[:, lvl]
+        level_widths = tree.widths[:, lvl]
         start, end = int(tree.lvp[lvl]), int(tree.lvp[lvl + 1])
 
         for node_idx in range(start, end):
@@ -236,9 +250,9 @@ def _hifie_base(A, x, occ, rank_or_tol, idfun, pxyfun, opts: dict[str, Any], dim
             if stage_dim < dim:
                 if lvl == 0:
                     break
-                if skip(tree.nlvl - lvl - 1, level_l):
+                if skip(tree.nlvl - lvl - 1, level_widths):
                     continue
-                blocks = _dimensional_blocks(tree, x, rem, lvl, level_l, stage_dim, dim)
+                blocks = _dimensional_blocks(tree, x, rem, lvl, level_widths, stage_dim, dim)
                 for node_idx in range(start, end):
                     tree.nodes[node_idx].xi = np.array([], dtype=np.int64)
             else:
@@ -274,7 +288,7 @@ def _hifie_base(A, x, occ, rank_or_tol, idfun, pxyfun, opts: dict[str, Any], dim
                     if pxyfun is None:
                         nbr = np.setdiff1d(np.flatnonzero(rem), slf, assume_unique=False)
                     else:
-                        Kpxy, nbr = pxyfun(x, slf, nbr, level_l, blk.ctr)
+                        Kpxy, nbr = pxyfun(x, slf, nbr, level_widths, blk.ctr)
                         Kpxy = np.asarray(Kpxy)
                         nbr = np.asarray(nbr, dtype=np.int64)
 
@@ -586,7 +600,7 @@ def _matrix_dtype(A, n: int):
 def _skip_fun(skip):
     if callable(skip):
         return skip
-    return lambda lvl, l: lvl < skip
+    return lambda level, box_size: level < skip
 
 
 def _concat_arrays(parts: list[np.ndarray]) -> np.ndarray:

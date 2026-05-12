@@ -1,3 +1,4 @@
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -6,6 +7,8 @@ import numpy as np
 
 from matlab_parity_utils import (
     FLAM_MARKERS,
+    REPO_ROOT,
+    default_chunkie_reference,
     default_flam_reference,
     factor_metadata_code,
     load_reference_dependencies,
@@ -51,6 +54,13 @@ class MatlabParityUtilsTests(unittest.TestCase):
 
         if ref.exists():
             self.assertTrue(all((ref / marker).exists() for marker in FLAM_MARKERS))
+
+    def test_default_chunkie_reference_prefers_repo_submodule(self):
+        ref = default_chunkie_reference()
+        repo_ref = REPO_ROOT / "tests" / "references" / "chunkie"
+
+        if "CHUNKIE_REFERENCE" not in os.environ and repo_ref.exists():
+            self.assertEqual(ref, repo_ref)
 
     def test_reference_dependency_pins_are_loaded(self):
         deps = load_reference_dependencies()

@@ -48,11 +48,11 @@ def _proxy_case_callbacks(coords, symm):
         out = _proxy_kernel(coords[i], coords[j], symm)
         return out + 3.0 * (i[:, None] == j[None, :])
 
-    def pxyfun(x, slf, nbr, l, ctr):
+    def pxyfun(x, slf, nbr, box_size, ctr):
         calls["proxy"] += 1
         slf = np.asarray(slf, dtype=np.int64).reshape(-1)
         nbr = np.asarray(nbr, dtype=np.int64).reshape(-1)
-        width = float(np.asarray(l).reshape(-1)[0])
+        width = float(np.asarray(box_size).reshape(-1)[0])
         center = float(np.asarray(ctr).reshape(-1)[0])
         proxy = center + width * np.array([-1.75, -1.25, 1.25, 1.75])
         nbr = nbr[np.abs(coords[nbr] - center) <= 1.25 * width]

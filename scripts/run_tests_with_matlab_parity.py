@@ -13,6 +13,7 @@ sys.path.insert(0, str(ROOT / "tests"))
 
 from matlab_parity_utils import (  # noqa: E402
     MATLAB,
+    default_chunkie_reference,
     default_flam_reference,
     require_flam_reference,
     require_paths,
@@ -22,7 +23,7 @@ from matlab_parity_utils import (  # noqa: E402
 
 def main() -> int:
     flam_ref = default_flam_reference()
-    chunkie_ref = Path(os.environ.get("CHUNKIE_REFERENCE", Path.home() / "git" / "chunkie"))
+    chunkie_ref = default_chunkie_reference()
     try:
         require_paths(MATLAB, flam_ref, chunkie_ref, label="MATLAB parity runner")
         require_flam_reference(flam_ref, label="MATLAB parity runner")

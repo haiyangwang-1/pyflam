@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import cProfile
 import csv
+from functools import partial
 import json
 from pathlib import Path
 import pstats
@@ -110,10 +111,10 @@ def case_meta(F) -> dict:
 def run_dense_case(family: str, n: int, occ: int, tol: float, top_n: int) -> list[dict]:
     A, x = dense_kernel_case(n)
     if family == "rskelf":
-        build = lambda: rskelf(A, x, occ, tol, opts={"symm": "p"})
+        build = partial(rskelf, A, x, occ, tol, opts={"symm": "p"})
         mv_fn, sv_fn, logdet_fn, diag_fn = rskelf_mv, rskelf_sv, rskelf_logdet, rskelf_diag
     elif family == "hifie":
-        build = lambda: hifie2(A, x, occ, tol, opts={"symm": "p"})
+        build = partial(hifie2, A, x, occ, tol, opts={"symm": "p"})
         mv_fn, sv_fn, logdet_fn, diag_fn = hifie_mv, hifie_sv, hifie_logdet, hifie_diag
     else:
         raise ValueError(f"unknown dense family: {family}")
@@ -133,10 +134,10 @@ def run_dense_case(family: str, n: int, occ: int, tol: float, top_n: int) -> lis
 def run_compression_case(family: str, n: int, occ: int, tol: float, top_n: int) -> list[dict]:
     A, x = dense_kernel_case(n)
     if family == "rskel":
-        build = lambda: rskel(A, x, x, occ, tol, opts={"symm": "p"})
+        build = partial(rskel, A, x, x, occ, tol, opts={"symm": "p"})
         mv_fn = rskel_mv
     elif family == "ifmm":
-        build = lambda: ifmm(A, x, x, occ, tol, opts={"store": "a", "near": 1, "symm": "p"})
+        build = partial(ifmm, A, x, x, occ, tol, opts={"store": "a", "near": 1, "symm": "p"})
         mv_fn = ifmm_mv
     else:
         raise ValueError(f"unknown compression family: {family}")
@@ -153,10 +154,10 @@ def run_compression_case(family: str, n: int, occ: int, tol: float, top_n: int) 
 def run_sparse_case(family: str, grid_n: int, occ: int, tol: float, top_n: int) -> list[dict]:
     A = spd_grid2(grid_n)
     if family == "mf":
-        build = lambda: mf2(A, grid_n, occ, opts={"symm": "p"})
+        build = partial(mf2, A, grid_n, occ, opts={"symm": "p"})
         mv_fn, sv_fn, logdet_fn, diag_fn = mf_mv, mf_sv, mf_logdet, mf_diag
     elif family == "hifde":
-        build = lambda: hifde2(A, grid_n, occ, tol, opts={"symm": "p", "skip": 1})
+        build = partial(hifde2, A, grid_n, occ, tol, opts={"symm": "p", "skip": 1})
         mv_fn, sv_fn, logdet_fn, diag_fn = hifde_mv, hifde_sv, hifde_logdet, hifde_diag
     else:
         raise ValueError(f"unknown sparse family: {family}")

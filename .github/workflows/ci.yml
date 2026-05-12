@@ -1,0 +1,96 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  python:
+    name: Python ${{ matrix.python-version }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          enable-cache: true
+
+      - name: Install project
+        run: uv sync --locked
+
+      - name: Lint
+        run: uvx ruff check .
+
+      - name: Run local tests
+        run: uv run python scripts/run_local_tests.py
+
+      - name: Build package
+        run: uv build
+
+      - name: Check installed dependency metadata
+        run: uv pip check
+
+      - name: Prune uv cache
+        if: always()
+        run: uv cache prune --ci
+
+  matlab-parity:
+    name: MATLAB parity
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+        with:
+          submodules: recursive
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          enable-cache: true
+
+      - name: Set up MATLAB
+        uses: matlab-actions/setup-matlab@v3
+
+      - name: Install project
+        run: uv sync --locked
+
+      - name: Check out pinned FLAM reference
+        run: |
+          git clone https://github.com/klho/FLAM.git tests/references/flam
+          git -C tests/references/flam checkout b928b2b1b4e0c3a00558bcdc7e3147fe83e720c4
+
+      - name: Verify ChunkIE submodule pin
+        run: git -C tests/references/chunkie rev-parse HEAD
+
+      - name: Run MATLAB parity suite
+        env:
+          FLAM_REFERENCE: ${{ github.workspace }}/tests/references/flam
+          CHUNKIE_REFERENCE: ${{ github.workspace }}/tests/references/chunkie
+        run: uv run python scripts/run_tests_with_matlab_parity.py
+
+      - name: Prune uv cache
+        if: always()
+        run: uv cache prune --ci

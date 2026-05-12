@@ -1,6 +1,6 @@
 [project]
 name = "pyflam"
-version = "0.0.1"
+version = "0.1.0"
 description = "A NumPy/SciPy re-implementation of Ken Ho's GPL FLAM hierarchical matrix routines."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -32,6 +32,8 @@ dependencies = [
 ]
 
 [project.urls]
+"Source" = "https://github.com/haiyangwang-1/pyflam"
+"Changelog" = "https://github.com/haiyangwang-1/pyflam/blob/master/CHANGELOG.md"
 "Upstream FLAM" = "https://github.com/klho/FLAM"
 "Upstream ChunkIE" = "https://github.com/fastalgorithms/chunkie"
 
@@ -41,6 +43,18 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/pyflam"]
+
+[tool.hatch.build.targets.sdist]
+exclude = [
+    "/tests/references",
+]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 120
+exclude = [
+    "tests/references",
+]
 
 [tool.pyflam.test-reference-dependencies.flam]
 name = "FLAM"

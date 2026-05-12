@@ -1,0 +1,3 @@
+[submodule "tests/references/chunkie"]
+	path = tests/references/chunkie
+	url = https://github.com/fastalgorithms/chunkie.git

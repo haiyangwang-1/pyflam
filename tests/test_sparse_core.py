@@ -20,28 +20,36 @@ from pyflam import (
 class SparseCoreTests(unittest.TestCase):
     def test_spget_and_column_storage_helpers(self):
         A = sp.csr_matrix(np.arange(16.0).reshape(4, 4))
-        I = np.array([0, 2])
-        J = np.array([1, 3])
-        np.testing.assert_allclose(spget(A, I, J), A.toarray()[np.ix_(I, J)])
+        rows = np.array([0, 2])
+        col_indices = np.array([1, 3])
+        np.testing.assert_allclose(spget(A, rows, col_indices), A.toarray()[np.ix_(rows, col_indices)])
 
         cols = [sp.csc_matrix(A[:, j]) for j in range(A.shape[1])]
-        np.testing.assert_allclose(spgetv(cols, I, J), A.toarray()[np.ix_(I, J)])
-        cols = spaddv(cols, I, J, np.ones((2, 2)))
+        np.testing.assert_allclose(spgetv(cols, rows, col_indices), A.toarray()[np.ix_(rows, col_indices)])
+        cols = spaddv(cols, rows, col_indices, np.ones((2, 2)))
         expected = A.toarray()
-        expected[np.ix_(I, J)] += 1
+        expected[np.ix_(rows, col_indices)] += 1
         np.testing.assert_allclose(spgetv(cols, np.arange(4), np.arange(4)), expected)
 
     def test_sparse_push_helpers_expand_capacity(self):
-        I, J, nz = sppush2(np.zeros(1, dtype=int), np.zeros(1, dtype=int), 0, [1, 2], [3, 4])
+        row_buffer, col_buffer, nz = sppush2(np.zeros(1, dtype=int), np.zeros(1, dtype=int), 0, [1, 2], [3, 4])
         self.assertEqual(nz, 2)
-        np.testing.assert_array_equal(I[:nz], [1, 2])
-        np.testing.assert_array_equal(J[:nz], [3, 4])
+        np.testing.assert_array_equal(row_buffer[:nz], [1, 2])
+        np.testing.assert_array_equal(col_buffer[:nz], [3, 4])
 
-        I, J, V, nz = sppush3(np.zeros(1, dtype=int), np.zeros(1, dtype=int), np.zeros(1), 0, [1, 2], [3, 4], [5.0, 6.0])
+        row_buffer, col_buffer, value_buffer, nz = sppush3(
+            np.zeros(1, dtype=int),
+            np.zeros(1, dtype=int),
+            np.zeros(1),
+            0,
+            [1, 2],
+            [3, 4],
+            [5.0, 6.0],
+        )
         self.assertEqual(nz, 2)
-        np.testing.assert_array_equal(I[:nz], [1, 2])
-        np.testing.assert_array_equal(J[:nz], [3, 4])
-        np.testing.assert_allclose(V[:nz], [5.0, 6.0])
+        np.testing.assert_array_equal(row_buffer[:nz], [1, 2])
+        np.testing.assert_array_equal(col_buffer[:nz], [3, 4])
+        np.testing.assert_allclose(value_buffer[:nz], [5.0, 6.0])
 
     def test_symmetry_helpers(self):
         A = np.array([[1.0, 2.0], [0.0, 3.0]])

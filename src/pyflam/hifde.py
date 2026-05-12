@@ -107,32 +107,46 @@ def hifde3x(A, x, occ: int, rank_or_tol, opts: dict[str, Any] | None = None) -> 
 
 
 def hifde_mv(F: HIFDEFactor, X, trans: str = "n"):
+    """Apply a HIFDE factor or its transpose/adjoint."""
+
     return rskelf_mv(F.backend, X, trans)
 
 
 def hifde_sv(F: HIFDEFactor, X, trans: str = "n"):
+    """Solve with a HIFDE factor or its transpose/adjoint."""
+
     return rskelf_sv(F.backend, X, trans)
 
 
 def hifde_logdet(F: HIFDEFactor):
+    """Return the log determinant represented by a HIFDE factor."""
+
     return rskelf_logdet(F.backend)
 
 
 def hifde_cholmv(F: HIFDEFactor, X, trans: str = "n"):
+    """Apply the generalized Cholesky factor for positive-definite HIFDE."""
+
     return rskelf_cholmv(F.backend, X, trans)
 
 
 def hifde_cholsv(F: HIFDEFactor, X, trans: str = "n"):
+    """Apply the inverse generalized Cholesky factor for positive-definite HIFDE."""
+
     return rskelf_cholsv(F.backend, X, trans)
 
 
 def hifde_diag(F: HIFDEFactor, dinv: bool | int = False, opts: dict[str, Any] | None = None):
+    """Extract ``diag(F)`` or ``diag(inv(F))`` from a HIFDE factor."""
+
     if F.backend.Si is not None and F.backend.Si.size == 0:
         return _rskelf_diag_unfold(F.backend, dinv, external=True)
     return rskelf_diag(F.backend, dinv, opts)
 
 
 def hifde_spdiag(F: HIFDEFactor, dinv: bool | int = False):
+    """Extract a HIFDE diagonal through the sparse selected-inversion path."""
+
     if F.backend.Si is not None and F.backend.Si.size == 0:
         return _rskelf_spdiag_sparse_from_info(F.backend, dinv, *_hifde_spdiag_info(F.backend))
     return hifde_diag(F, dinv)
@@ -228,7 +242,7 @@ def _hifde_point(A, x, occ: int, rank_or_tol, opts: dict[str, Any], dim: int) ->
 
     for lvl in range(tree.nlvl - 1, -1, -1):
         start, end = int(tree.lvp[lvl]), int(tree.lvp[lvl + 1])
-        level_l = tree.l[:, lvl]
+        level_widths = tree.widths[:, lvl]
 
         for node_idx in range(start, end):
             child_xi = _concat_unique([tree.nodes[ch].xi for ch in tree.nodes[node_idx].chld])
@@ -239,9 +253,9 @@ def _hifde_point(A, x, occ: int, rank_or_tol, opts: dict[str, Any], dim: int) ->
             if stage_dim < dim:
                 if lvl == 0:
                     break
-                if skip(tree.nlvl - lvl - 1, level_l, stage_dim):
+                if skip(tree.nlvl - lvl - 1, level_widths, stage_dim):
                     continue
-                dim_blocks = _dimensional_blocks(tree, x, rem, lvl, level_l, stage_dim, dim)
+                dim_blocks = _dimensional_blocks(tree, x, rem, lvl, level_widths, stage_dim, dim)
                 for node_idx in range(start, end):
                     tree.nodes[node_idx].xi = np.array([], dtype=np.int64)
                 blocks = _point_separator_blocks(A_work, tree, dim_blocks, rem, rank_or_tol, opts)
@@ -331,7 +345,6 @@ def _make_cell_block(slf: np.ndarray, interior: np.ndarray, rem: np.ndarray, dty
 
 def _regular_separator_blocks(A, grid, rem, n: int, w: int, nb: int, dim: int, stage_dim: int, rank_or_tol, opts):
     blocks: list[_HIFDEBlock] = []
-    nd = n - 1
     if dim == 2 and stage_dim == 1:
         for i in range(1, 2 * nb):
             for j in range(1, 2 * nb):
@@ -634,14 +647,14 @@ def _skip_fun(skip, point_dim: int | None):
     if callable(skip):
         if point_dim == 3:
             return skip
-        return lambda lvl, l, d: skip(lvl, l) if l is not None else skip(lvl)
+        return lambda level, box_size, axis: skip(level, box_size) if box_size is not None else skip(level)
     values = np.asarray(skip).reshape(-1)
     if point_dim == 3:
         if values.size == 1:
             values = np.repeat(values, 2)
-        return lambda lvl, l, d: lvl < values[int(d) - 1]
+        return lambda level, box_size, axis: level < values[int(axis) - 1]
     threshold = values[0] if values.size else 0
-    return lambda lvl, l, d: lvl < threshold
+    return lambda level, box_size, axis: level < threshold
 
 
 __all__ = [

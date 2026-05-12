@@ -66,6 +66,8 @@ class IFMMFactor(StructMixin):
 
 
 def ifmm(A, rx, cx, occ, rank_or_tol, pxyfun=None, opts=None) -> IFMMFactor:
+    """Build an interpolative fast multipole method apply factor."""
+
     defaults = {
         "lvlmax": np.inf,
         "ext": None,
@@ -123,7 +125,7 @@ def ifmm(A, rx, cx, occ, rank_or_tol, pxyfun=None, opts=None) -> IFMMFactor:
     crem = np.ones(N, dtype=bool)
 
     for lvl in range(tree.nlvl):
-        node_size = tree.l[:, lvl]
+        node_size = tree.widths[:, lvl]
         for i in range(tree.lvp[lvl], tree.lvp[lvl + 1]):
             node = tree.nodes[i]
             rslf = np.asarray(node.rxi, dtype=np.int64)
@@ -216,7 +218,7 @@ def ifmm(A, rx, cx, occ, rank_or_tol, pxyfun=None, opts=None) -> IFMMFactor:
     offset = 1
     for lvl in range(tree.nlvl - 1, -1, -1):
         offset += 1
-        node_size = tree.l[:, lvl]
+        node_size = tree.widths[:, lvl]
 
         for i in range(tree.lvp[lvl], tree.lvp[lvl + 1]):
             node = tree.nodes[i]
@@ -329,6 +331,8 @@ def ifmm(A, rx, cx, occ, rank_or_tol, pxyfun=None, opts=None) -> IFMMFactor:
 
 
 def ifmm_mv(F: IFMMFactor, X, A=None, trans: str = "n") -> np.ndarray:
+    """Apply an IFMM factor, using ``A`` for unstored required interactions."""
+
     trans = chktrans(trans)
     if trans == "t":
         return np.conj(ifmm_mv(F, np.conj(X), A, "c"))
@@ -524,32 +528,32 @@ def _factor_dtype(F: IFMMFactor, X: np.ndarray, A) -> np.dtype:
     return np.dtype(dtype)
 
 
-def _required_block(A, I: np.ndarray, J: np.ndarray) -> np.ndarray:
+def _required_block(A, rows: np.ndarray, cols: np.ndarray) -> np.ndarray:
     if A is None:
         raise ValueError("A must be supplied when required interactions are not stored")
-    return _eval_block(A, I, J)
+    return _eval_block(A, rows, cols)
 
 
-def _eval_block(A, I: np.ndarray, J: np.ndarray) -> np.ndarray:
-    I = np.asarray(I, dtype=np.int64)
-    J = np.asarray(J, dtype=np.int64)
-    if I.size == 0 or J.size == 0:
-        return np.zeros((I.size, J.size))
-    return submatrix(A, I, J)
+def _eval_block(A, rows: np.ndarray, cols: np.ndarray) -> np.ndarray:
+    rows = np.asarray(rows, dtype=np.int64)
+    cols = np.asarray(cols, dtype=np.int64)
+    if rows.size == 0 or cols.size == 0:
+        return np.zeros((rows.size, cols.size))
+    return submatrix(A, rows, cols)
 
 
-def _proxy_with_neighbors(pxyfun, rc: str, rx, cx, slf, nbr, l, ctr) -> tuple[np.ndarray, np.ndarray | None]:
+def _proxy_with_neighbors(pxyfun, rc: str, rx, cx, slf, nbr, box_size, ctr) -> tuple[np.ndarray, np.ndarray | None]:
     if pxyfun is None:
         return np.zeros((slf.size, 0)) if rc == "r" else np.zeros((0, slf.size)), None
-    out = pxyfun(rc, rx, cx, slf, nbr, l, ctr)
+    out = pxyfun(rc, rx, cx, slf, nbr, box_size, ctr)
     if isinstance(out, tuple):
         K, nbr_out = out
         return np.asarray(K), np.asarray(nbr_out, dtype=np.int64)
     return np.asarray(out), None
 
 
-def _proxy_matrix(pxyfun, rc: str, rx, cx, slf, nbr, l, ctr) -> np.ndarray:
-    out = pxyfun(rc, rx, cx, slf, nbr, l, ctr)
+def _proxy_matrix(pxyfun, rc: str, rx, cx, slf, nbr, box_size, ctr) -> np.ndarray:
+    out = pxyfun(rc, rx, cx, slf, nbr, box_size, ctr)
     if isinstance(out, tuple):
         out = out[0]
     return np.asarray(out)
