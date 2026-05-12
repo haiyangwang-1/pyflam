@@ -2,9 +2,9 @@
 
 ## MATLAB And ChunkIE Parity
 
-Use `uv` and set both reference paths before running parity. Missing MATLAB,
-FLAM, or ChunkIE should be treated as a failed environment setup, not as a
-silent skip.
+Use `uv` and initialize the reference submodules before running parity. Missing
+MATLAB, FLAM, or ChunkIE should be treated as a failed environment setup, not
+as a silent skip.
 
 The exact external references are pinned in `pyproject.toml` under
 `[tool.pyflam.test-reference-dependencies]`. The current pins are:
@@ -16,25 +16,18 @@ The exact external references are pinned in `pyproject.toml` under
   `af34cc41c81114e693b515066e4d308067bf7e63`
   (`v1.0.1-docs-232-gaf34cc4`), required clean.
 
-ChunkIE is tracked as a test-only submodule. Initialize it with:
+FLAM and ChunkIE are tracked as test-only submodules. Initialize them with:
 
 ```powershell
 git submodule update --init --recursive
 ```
 
-Recreate the current FLAM reference checkout with:
-
 ```powershell
-git clone https://github.com/klho/FLAM.git <path-to-FLAM-checkout>
-git -C <path-to-FLAM-checkout> checkout b928b2b1b4e0c3a00558bcdc7e3147fe83e720c4
-```
-
-```powershell
-$env:FLAM_REFERENCE='<path-to-FLAM-checkout>'
 uv run python scripts\run_tests_with_matlab_parity.py
 ```
 
-Set `CHUNKIE_REFERENCE` only to override the repo submodule path.
+Set `FLAM_REFERENCE` or `CHUNKIE_REFERENCE` only to override the repo submodule
+paths.
 
 The harness validates that `FLAM_REFERENCE` contains the public entry-point
 files used by the parity suite, including `rskelf/rskelf.m`, `rskel/rskel.m`,
@@ -45,20 +38,16 @@ This avoids opaque MATLAB errors from incomplete or drifting helper checkouts.
 The direct full-suite command is:
 
 ```powershell
-$env:FLAM_REFERENCE='<path-to-FLAM-checkout>'
-$env:CHUNKIE_REFERENCE='<path-to-ChunkIE-checkout>'
 uv run python -m unittest discover -s tests -v
 ```
 
 Representative targeted parity commands:
 
 ```powershell
-$env:FLAM_REFERENCE='<path-to-FLAM-checkout>'
 uv run python -m unittest discover -s tests -p test_rskelf_option_parity.py -v -k diag
 uv run python -m unittest discover -s tests -p test_rskel_option_parity.py -v
 uv run python -m unittest discover -s tests -p test_ifmm_option_parity.py -v
 
-$env:CHUNKIE_REFERENCE='<path-to-ChunkIE-checkout>'
 uv run python -m unittest discover -s tests -p test_matlab_parity.py -v
 uv run python -m unittest discover -s tests -p test_chunkie_rskelf_parity.py -v
 ```
@@ -95,8 +84,8 @@ When validating complex factors manually, determinant equivalence through
 ## Release Checklist
 
 - Run `uv run python scripts\run_tests_with_matlab_parity.py` with
-  `FLAM_REFERENCE` set and `tests/references/chunkie` initialized, or with
-  `CHUNKIE_REFERENCE` set to an alternate pinned checkout.
+  `tests/references/flam` and `tests/references/chunkie` initialized, or with
+  `FLAM_REFERENCE`/`CHUNKIE_REFERENCE` set to alternate pinned checkouts.
 - Run `uv run python scripts\run_local_tests.py` and `uvx ruff check .` for
   the fast local gate before launching MATLAB.
 - Confirm MATLAB/FLAM/ChunkIE parity tests ran rather than being excluded by a

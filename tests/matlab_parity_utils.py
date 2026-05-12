@@ -43,6 +43,16 @@ def require_paths(*paths: Path, label: str = "MATLAB parity") -> None:
         raise RuntimeError(f"{label} requires: " + ", ".join(missing))
 
 
+def matlab_script_command(script: Path) -> list[str]:
+    """Return the command used to run a generated MATLAB script."""
+
+    command = f"run('{script.as_posix()}')"
+    launcher = os.environ.get("PYFLAM_MATLAB_LAUNCHER", "matlab").strip().lower()
+    if launcher in {"run-matlab-command", "matlab-batch"}:
+        return [str(MATLAB), command]
+    return [str(MATLAB), "-batch", command]
+
+
 def require_flam_reference(path: Path, label: str = "MATLAB parity") -> None:
     require_paths(path, *(path / marker for marker in FLAM_MARKERS), label=f"{label} FLAM reference")
     require_pinned_reference(path, "flam", label=label)
@@ -137,7 +147,7 @@ def default_chunkie_reference() -> Path:
 
 def run_matlab_script(script: Path, timeout: int = 120) -> None:
     attempts = max(1, int(os.environ.get("PYFLAM_MATLAB_RETRIES", "2")) + 1)
-    cmd = [str(MATLAB), "-batch", f"run('{script.as_posix()}')"]
+    cmd = matlab_script_command(script)
     result = None
     for attempt in range(attempts):
         result = subprocess.run(

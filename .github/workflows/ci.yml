@@ -74,21 +74,26 @@ jobs:
       - name: Set up MATLAB
         uses: matlab-actions/setup-matlab@v3
 
+      - name: Install MATLAB command launcher
+        run: |
+          curl -fsSL https://ssd.mathworks.com/supportfiles/ci/run-matlab-command/v2/glnxa64/run-matlab-command -o "$RUNNER_TEMP/run-matlab-command"
+          chmod +x "$RUNNER_TEMP/run-matlab-command"
+
       - name: Install project
         run: uv sync --locked
 
-      - name: Check out pinned FLAM reference
-        run: |
-          git clone https://github.com/klho/FLAM.git tests/references/flam
-          git -C tests/references/flam checkout b928b2b1b4e0c3a00558bcdc7e3147fe83e720c4
-
       - name: Verify ChunkIE submodule pin
         run: git -C tests/references/chunkie rev-parse HEAD
+
+      - name: Verify FLAM submodule pin
+        run: git -C tests/references/flam rev-parse HEAD
 
       - name: Run MATLAB parity suite
         env:
           FLAM_REFERENCE: ${{ github.workspace }}/tests/references/flam
           CHUNKIE_REFERENCE: ${{ github.workspace }}/tests/references/chunkie
+          MATLAB: ${{ runner.temp }}/run-matlab-command
+          PYFLAM_MATLAB_LAUNCHER: run-matlab-command
           MW_BATCH_LICENSING_ONLINE: "true"
         run: uv run python scripts/run_tests_with_matlab_parity.py
 

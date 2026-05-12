@@ -34,17 +34,17 @@ uvx ruff check .
 
 Full MATLAB/FLAM/ChunkIE parity requires MATLAB plus the pinned reference
 checkouts in `pyproject.toml` under
-`[tool.pyflam.test-reference-dependencies]`. ChunkIE is tracked as a Git
-submodule at `tests/references/chunkie` for test use:
+`[tool.pyflam.test-reference-dependencies]`. FLAM and ChunkIE are tracked as
+test-only Git submodules under `tests/references/`:
 
 ```powershell
 git submodule update --init --recursive
-$env:FLAM_REFERENCE='<path-to-FLAM-checkout>'
 uv run python scripts\run_tests_with_matlab_parity.py
 ```
 
-`CHUNKIE_REFERENCE` can still override the submodule path when needed. The
-parity harness validates both reference commits before running MATLAB.
+`FLAM_REFERENCE` and `CHUNKIE_REFERENCE` can still override the submodule paths
+when needed. The parity harness validates both reference commits before running
+MATLAB.
 
 Start with `docs/quickstart.md` for examples, `docs/development.md` for CI and
 test workflows, `docs/parity_callbacks_release.md` for parity/callback/logdet

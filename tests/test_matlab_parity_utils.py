@@ -14,6 +14,7 @@ from matlab_parity_utils import (
     load_reference_dependencies,
     load_factor_metadata,
     logdet_mod_error,
+    matlab_script_command,
     matlab_path,
     relerr,
     require_flam_reference,
@@ -27,6 +28,29 @@ class MatlabParityUtilsTests(unittest.TestCase):
         path = Path(r"C:\tmp\can't\break.mat")
 
         self.assertEqual(matlab_path(path), "C:/tmp/can''t/break.mat")
+
+    def test_matlab_script_command_defaults_to_matlab_batch_flag(self):
+        old_launcher = os.environ.pop("PYFLAM_MATLAB_LAUNCHER", None)
+        try:
+            cmd = matlab_script_command(Path("/tmp/run_case.m"))
+        finally:
+            if old_launcher is not None:
+                os.environ["PYFLAM_MATLAB_LAUNCHER"] = old_launcher
+
+        self.assertEqual(cmd[1:], ["-batch", "run('/tmp/run_case.m')"])
+
+    def test_matlab_script_command_supports_command_launcher(self):
+        old_launcher = os.environ.get("PYFLAM_MATLAB_LAUNCHER")
+        os.environ["PYFLAM_MATLAB_LAUNCHER"] = "run-matlab-command"
+        try:
+            cmd = matlab_script_command(Path("/tmp/run_case.m"))
+        finally:
+            if old_launcher is None:
+                os.environ.pop("PYFLAM_MATLAB_LAUNCHER", None)
+            else:
+                os.environ["PYFLAM_MATLAB_LAUNCHER"] = old_launcher
+
+        self.assertEqual(cmd[1:], ["run('/tmp/run_case.m')"])
 
     def test_logdet_mod_error_ignores_branch_offset(self):
         ref = 3.0 + 0.25j
