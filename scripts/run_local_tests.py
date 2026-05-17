@@ -18,6 +18,7 @@ LOCAL_TEST_MODULES = [
     "test_utilities",
     "test_geom",
     "test_dense_algorithms",
+    "test_structured_operator",
     "test_mf",
     "test_hifie",
     "test_hifde",

@@ -83,8 +83,11 @@ from .rskelf import (
     rskelf_spdiag,
     rskelf_sv,
 )
+from .structured import DofLayout, DofSpace, StructuredOperator, TensorInteraction, rskelf_structured
 
 __all__ = [
+    "DofLayout",
+    "DofSpace",
     "HypOctNode",
     "HypOctTree",
     "HIFDEFactor",
@@ -94,6 +97,8 @@ __all__ = [
     "MFFactorBlock",
     "RSkelFactor",
     "RSkelFFactor",
+    "StructuredOperator",
+    "TensorInteraction",
     "chktrans",
     "chksymm",
     "detperm",
@@ -156,6 +161,7 @@ __all__ = [
     "rskelf_partial_mv",
     "rskelf_partial_sv",
     "rskelf_spdiag",
+    "rskelf_structured",
     "rskelf_sv",
     "snorm",
     "spaddv",

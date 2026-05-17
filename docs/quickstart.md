@@ -64,6 +64,43 @@ factor = ifmm(kernel, x, x, occ=16, rank_or_tol=1e-10, opts={"store": "a", "near
 y = ifmm_mv(factor, np.ones(n), A=kernel)
 ```
 
+## Structured Tensor Operators
+
+Use `rskelf_structured` when the matrix comes from a block or tensor kernel and
+the proxy compression must keep each scalar channel visible. A
+`TensorInteraction` kernel is called as
+`kernel(target_points, source_points, output_component, input_component)` and
+returns one scalar channel matrix. During proxy compression, PyFLAM samples each
+requested `(output_component, input_component)` channel separately before
+building the ID.
+
+```python
+from pyflam import DofLayout, DofSpace, StructuredOperator, TensorInteraction, rskelf_structured
+
+
+def channel_kernel(target_points, source_points, output_component, input_component):
+    target = target_points.ravel()
+    source = source_points.ravel()
+    scale = [[1.0, -0.25], [0.5, 0.75]][output_component][input_component]
+    return scale / (1.0 + abs(target[:, None] - source[None, :]))
+
+
+def proxy_points(box_size, center, interaction, output_component, input_component, side):
+    del interaction, output_component, input_component, side
+    offsets = max(box_size) * np.array([-1.75, -1.25, 1.25, 1.75])
+    return np.asarray(center).reshape(-1, 1) + offsets.reshape(1, -1)
+
+
+layout = DofLayout((DofSpace("boundary", x, component_count=2),))
+operator = StructuredOperator(
+    layout,
+    layout,
+    (TensorInteraction("boundary", "boundary", channel_kernel),),
+    proxy_points=proxy_points,
+)
+factor = rskelf_structured(operator, occ=16, rank_or_tol=1e-10)
+```
+
 ## Sparse Grid Operators
 
 For sparse grid matrices, use `mf2`/`mf3`/`mfx` or the HIFDE wrappers. The
@@ -103,3 +140,6 @@ solution = mf_sv(factor, np.ones(A.shape[0]))
   box-width argument.
 - Sparse near/self quadrature corrections should overwrite analytic kernel
   entries when reconstructing ChunkIE-style operators.
+- Structured operators preserve row space, column space, output component, and
+  input component metadata through proxy sampling. They still expose ordinary
+  flat matrix blocks at the final factor apply/solve boundary.

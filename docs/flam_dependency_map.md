@@ -23,6 +23,10 @@ families used by the public API.
 - `rskelf` depends on `hypoct`, `id`, sparse update helpers, local LU/Cholesky
   blocks, and mode-specific apply/solve/logdet/selected-inversion sweeps.
   Complete callback factors avoid full dense matrix retention.
+- `rskelf_structured` adapts block/tensor operators to `rskelf` while preserving
+  row space, column space, output component, and input component metadata during
+  proxy sampling. The factor still stores ordinary flat FLAM indices for
+  apply/solve.
 
 ## Sparse And HIF Kernels
 

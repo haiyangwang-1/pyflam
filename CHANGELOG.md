@@ -5,6 +5,8 @@
 - Added GitHub Actions CI for Python checks and MATLAB parity.
 - Added the pinned ChunkIE reference as a test-only Git submodule under
   `tests/references/chunkie`.
+- Added structured tensor/block operator adapters and `rskelf_structured` for
+  channel-aware proxy compression.
 - Added `scripts/run_local_tests.py` for the fast non-MATLAB unit layer.
 - Added Ruff configuration and cleaned up internal MATLAB-style variable names.
 - Renamed `HypOctTree.l` to `HypOctTree.widths`.
